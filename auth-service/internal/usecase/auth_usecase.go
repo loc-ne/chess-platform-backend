@@ -7,6 +7,13 @@ import (
 	"regexp"
 )
 
+type UserInfo struct {
+    ID       int    `json:"id"`
+    Email    string `json:"email"`
+    Username string `json:"username"`
+}
+
+
 func isEmail(text string) bool {
     emailRegex := `^[^\s@]+@[^\s@]+\.[^\s@]+$`
     re := regexp.MustCompile(emailRegex)
@@ -39,7 +46,11 @@ func validateUser(userRepo repository.UserRepository, username, password string)
     if !CheckPasswordHash(password, user.Password) {
         return user, fmt.Errorf("invalid credentials")
     }
-    return user, nil
+    return UserInfo{
+        ID:       user.ID,
+        Email:    user.Email,
+        Username: user.Username,
+    }, nil
 }
 
 func Login(userRepo repository.UserRepository, username, password string) (entity.User, string, string, error) {
