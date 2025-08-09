@@ -4,6 +4,7 @@ import (
     "net/http"
     "github.com/locne/auth-service/internal/interface/repository"
     "github.com/locne/auth-service/internal/usecase"
+    "github.com/locne/auth-service/internal/entity"
     "github.com/gin-gonic/gin"
     "fmt"
 )
@@ -67,10 +68,41 @@ func Login(userRepo repository.UserRepository) gin.HandlerFunc {
     }
 }
 
+func Register(userRepo repository.UserRepository) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        var req CreateUserDto
+        if err := c.ShouldBindJSON(&req); err != nil {
+            fmt.Println("BindJSON error:", err)
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+
+        user := entity.User{
+        Email:    req.Email,
+        Username: req.Username,
+        Password: req.Password,
+        }
+
+        userInfo, err := usecase.Register(user, req)
+        if err != nil {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+            return
+        }
+
+		c.JSON(http.StatusOK, APIResponse{
+			Status:  "success",
+			Message: "Register successful",
+			Data:    userInfo,
+		})
+    }
+    // to do message queue
+}
+
 
 func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository ) {
     api := router.Group("/api/v1/auth")
     {
         api.POST("/login", Login(userRepo))
+        api.POST("/register", Register(userRepo))
     }
 }
