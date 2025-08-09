@@ -5,6 +5,7 @@ import (
 	"github.com/locne/auth-service/internal/interface/repository"
 	"golang.org/x/crypto/bcrypt"
 	"regexp"
+    "fmt"
 )
 
 type UserInfo struct {
@@ -12,7 +13,6 @@ type UserInfo struct {
     Email    string `json:"email"`
     Username string `json:"username"`
 }
-
 
 func isEmail(text string) bool {
     emailRegex := `^[^\s@]+@[^\s@]+\.[^\s@]+$`
@@ -46,23 +46,24 @@ func validateUser(userRepo repository.UserRepository, username, password string)
     if !CheckPasswordHash(password, user.Password) {
         return user, fmt.Errorf("invalid credentials")
     }
-    return UserInfo{
+    return user, nil
+}
+
+func Login(userRepo repository.UserRepository, username, password string) (UserInfo, string, string, error) {
+    user, err := validateUser(userRepo, username, password)
+    if err != nil {
+        return UserInfo{}, "", "", err
+    }
+    accessToken, refreshToken, err := GenerateTokens(userRepo, user)
+    if err != nil {
+        return UserInfo{}, "", "", err
+    }
+    userInfo := UserInfo{
         ID:       user.ID,
         Email:    user.Email,
         Username: user.Username,
-    }, nil
-}
-
-func Login(userRepo repository.UserRepository, username, password string) (entity.User, string, string, error) {
-    user, err := validateUser(userRepo, username, password)
-    if err != nil {
-        return user, "", "", err
     }
-    accessToken, refreshToken, err := GenerateTokens(user)
-    if err != nil {
-        return user, "", "", err
-    }
-    return user, accessToken, refreshToken, nil
+    return userInfo, accessToken, refreshToken, nil
 }
 
 func Register(userRepo repository.UserRepository, user entity.User) (entity.User, error) {
@@ -71,9 +72,9 @@ func Register(userRepo repository.UserRepository, user entity.User) (entity.User
         return user, err
     }
     user.Password = string(hashedPassword)
-    createdUser, err := userRepo.Create(user)
+    err = userRepo.Create(user)
     if err != nil {
-        return createdUser, err
+        return user, err
     }
-    return createdUser, nil
+    return user, nil
 }
