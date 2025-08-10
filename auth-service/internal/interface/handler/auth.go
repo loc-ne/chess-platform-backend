@@ -5,6 +5,8 @@ import (
     "github.com/locne/auth-service/internal/interface/repository"
     "github.com/locne/auth-service/internal/usecase"
     "github.com/locne/auth-service/internal/entity"
+    "github.com/locne/auth-service/internal/infrastructure/messagebroker"
+    "github.com/rabbitmq/amqp091-go"
     "github.com/gin-gonic/gin"
     "fmt"
 )
@@ -25,7 +27,7 @@ type CreateUserDto struct {
     Username string `json:"username"`
 	Email string `json:"email"`
     Password string `json:"password"`
-	Elo string `json:"elo"`
+	Elo int `json:"elo"`
 }
 
 func Login(userRepo repository.UserRepository) gin.HandlerFunc {
@@ -68,7 +70,7 @@ func Login(userRepo repository.UserRepository) gin.HandlerFunc {
     }
 }
 
-func Register(userRepo repository.UserRepository) gin.HandlerFunc {
+func Register(userRepo repository.UserRepository, ch *amqp091.Channel) gin.HandlerFunc {
     return func(c *gin.Context) {
         var req CreateUserDto
         if err := c.ShouldBindJSON(&req); err != nil {
@@ -83,10 +85,16 @@ func Register(userRepo repository.UserRepository) gin.HandlerFunc {
         Password: req.Password,
         }
 
-        userInfo, err := usecase.Register(user, req)
+        userInfo, err := usecase.Register(userRepo, user)
         if err != nil {
             c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
             return
+        }
+
+        if ch != nil {
+            if err := messagebroker.PublishPlayerRegister(ch, userInfo.ID, req.Elo); err != nil {
+                fmt.Println("Publish player register error:", err)
+            }
         }
 
 		c.JSON(http.StatusOK, APIResponse{
@@ -95,14 +103,13 @@ func Register(userRepo repository.UserRepository) gin.HandlerFunc {
 			Data:    userInfo,
 		})
     }
-    // to do message queue
 }
 
 
-func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository ) {
+func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository, ch *amqp091.Channel) {
     api := router.Group("/api/v1/auth")
     {
         api.POST("/login", Login(userRepo))
-        api.POST("/register", Register(userRepo))
+        api.POST("/register", Register(userRepo, ch))
     }
 }

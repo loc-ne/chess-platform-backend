@@ -8,6 +8,7 @@ import (
     "github.com/locne/auth-service/internal/interface/repository"
     "github.com/locne/auth-service/internal/interface/handler"
     "github.com/locne/auth-service/internal/entity"
+    "github.com/locne/auth-service/internal/infrastructure/messagebroker"
     "github.com/gin-contrib/cors"
 )
 
@@ -30,7 +31,15 @@ func main() {
 
     dbConn.AutoMigrate(&entity.User{})
     userRepository := repository.NewUserRepository(dbConn)
-    handler.RegisterAuthRoutes(router, userRepository)
+
+    conn, ch, err := messagebroker.ConnectRabbit()
+    if err != nil {
+        panic(err)
+    }
+    defer conn.Close()
+    defer ch.Close()
+
+    handler.RegisterAuthRoutes(router, userRepository, ch)
 
     fmt.Println("Server started on :3001")
     if runErr := router.Run(":3001"); runErr != nil {

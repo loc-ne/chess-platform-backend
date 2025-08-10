@@ -8,7 +8,7 @@ import (
 type UserRepository interface {
     FindByEmail(email string) (entity.User, error)
     FindByUsername(username string) (entity.User, error)
-    Create(user entity.User) error
+    Create(user *entity.User) error
     SaveRefreshToken(userID int, refreshToken string) error
 }
 
@@ -38,7 +38,7 @@ func (r *userRepository) FindByUsername(username string) (entity.User, error) {
     return user, nil
 }
 
-func (r *userRepository) Create(user entity.User) error {
+func (r *userRepository) Create(user *entity.User) error {
     return r.db.Create(user).Error
 }
 
