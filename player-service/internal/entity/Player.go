@@ -16,7 +16,7 @@ const (
 type Player struct {
     ID          int       `gorm:"primaryKey"`
     UserID      int       `gorm:"index"`
-    GameType    GameType  `gorm:"type:enum('bullet','blitz','rapid','classical');index"`
+    GameType    GameType  `gorm:"type:varchar(20);index"`
     WhiteGames  int       `gorm:"default:0"`
     BlackGames  int       `gorm:"default:0"`
     Rating      int       `gorm:"default:1200"`
