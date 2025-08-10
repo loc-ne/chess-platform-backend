@@ -69,13 +69,13 @@ func Login(userRepo repository.UserRepository, username, password string) (UserI
 func Register(userRepo repository.UserRepository, user entity.User) (UserInfo, error) {
     hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
     if err != nil {
-        return user, err
+        return UserInfo{}, err
     }
     user.Password = string(hashedPassword)
-    err = userRepo.Create(user)
+    err = userRepo.Create(&user)
 
     if err != nil {
-        return user, err
+        return UserInfo{}, err
     }
 
     userInfo := UserInfo{
