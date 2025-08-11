@@ -133,7 +133,7 @@ func GetMe(userRepo repository.UserRepository) gin.HandlerFunc {
             return
         }
 
-        user, err := userRepo.FindByID(userID.(int))
+        userInfo, err := usecase.GetUserByID(userRepo, userID.(int))
         if err != nil {
             c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "user not found"})
             return
@@ -142,7 +142,7 @@ func GetMe(userRepo repository.UserRepository) gin.HandlerFunc {
         c.JSON(http.StatusOK, APIResponse{
             Status:  "success",
             Message: "Success",
-            Data:    user,
+            Data:    userInfo,
         })
 
     }
