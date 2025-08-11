@@ -8,6 +8,7 @@ import (
 type UserRepository interface {
     FindByEmail(email string) (entity.User, error)
     FindByUsername(username string) (entity.User, error)
+    FindByID(userID int) (entity.User, error)
     Create(user *entity.User) error
     SaveRefreshToken(userID int, refreshToken string) error
 }
@@ -32,6 +33,15 @@ func (r *userRepository) FindByEmail(email string) (entity.User, error) {
 func (r *userRepository) FindByUsername(username string) (entity.User, error) {
     var user entity.User
     result := r.db.Where("username = ?", username).First(&user)
+    if result.Error != nil {
+        return user, result.Error
+    }
+    return user, nil
+}
+
+func (r *userRepository) FindByID(userID int) (entity.User, error) {
+    var user entity.User
+    result := r.db.Where("id = ?", userID).First(&user)
     if result.Error != nil {
         return user, result.Error
     }

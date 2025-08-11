@@ -105,11 +105,56 @@ func Register(userRepo repository.UserRepository, ch *amqp091.Channel) gin.Handl
     }
 }
 
+func AuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        token, err := c.Cookie("access_token")
+        if err != nil || token == "" {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+            return
+        }
+
+        userID, err := usecase.ValidateToken(token) 
+        if err != nil {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+            return
+        }
+
+        c.Set("userID", userID) 
+        c.Next()
+    }
+}
+
+
+func GetMe(userRepo repository.UserRepository) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        userID, exists := c.Get("userID")
+        if !exists {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+            return
+        }
+
+        user, err := userRepo.FindByID(userID.(int))
+        if err != nil {
+            c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "user not found"})
+            return
+        }
+
+        c.JSON(http.StatusOK, APIResponse{
+            Status:  "success",
+            Message: "Success",
+            Data:    user,
+        })
+
+    }
+}
+
+
 
 func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository, ch *amqp091.Channel) {
     api := router.Group("/api/v1/auth")
     {
         api.POST("/login", Login(userRepo))
         api.POST("/register", Register(userRepo, ch))
+        api.GET("/me",AuthMiddleware(), GetMe(userRepo))
     }
 }
