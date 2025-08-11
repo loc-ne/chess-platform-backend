@@ -54,6 +54,17 @@ func GenerateTokens(userRepo repository.UserRepository, user entity.User) (acces
     return accessToken, refreshToken, nil
 }
 
+func RefreshToken(userRepo repository.UserRepository, refreshToken string) (accessToken string, newRefreshToken string, err error) {
+    user, err := userRepo.FindByRefreshToken(refreshToken)
+    if err != nil {
+        return "", "", fmt.Errorf("invalid refresh token")
+    }
+    if !user.IsActive {
+        return "", "", fmt.Errorf("user is not active")
+    }
+    return GenerateTokens(userRepo, user)
+}
+
 func ValidateToken(tokenString string) (int, error) {
     parts := strings.Split(tokenString, ".")
     if len(parts) != 3 {
