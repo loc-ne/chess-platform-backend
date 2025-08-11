@@ -6,6 +6,7 @@ import (
     "github.com/gin-gonic/gin"
     "github.com/locne/player-service/internal/infrastructure/db"
     "github.com/locne/player-service/internal/interface/repository"
+    "github.com/locne/player-service/internal/interface/handler"
     "github.com/locne/player-service/internal/entity"
 	"github.com/locne/player-service/internal/infrastructure/messagebroker"
     "github.com/gin-contrib/cors"
@@ -38,6 +39,8 @@ func main() {
     defer conn.Close()
     defer ch.Close()
     messagebroker.ConsumePlayerRegister(ch, playerRepository)
+
+    handler.RegisterPlayerRoutes(router, playerRepository)
 
     fmt.Println("Server started on :3002")
     if runErr := router.Run(":3002"); runErr != nil {
