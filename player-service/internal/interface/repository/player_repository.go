@@ -7,6 +7,7 @@ import (
 
 type PlayerRepository interface {
     Create(player entity.Player) error
+    GetByUserIDAndGameType(userID int, gameType entity.GameType) (entity.Player, error)
 }
 
 type playerRepository struct {
@@ -19,4 +20,10 @@ func NewPlayerRepository(db *gorm.DB) PlayerRepository {
 
 func (r *playerRepository) Create(player entity.Player) error {
     return r.db.Create(&player).Error
+}
+
+func (r *playerRepository) GetByUserIDAndGameType(userID int, gameType entity.GameType) (entity.Player, error) {
+    var player entity.Player
+    err := r.db.Where("user_id = ? AND game_type = ?", userID, gameType).First(&player).Error
+    return player, err
 }

@@ -32,3 +32,11 @@ func CreateAllGameTypePlayers(repo repository.PlayerRepository, userID int, elo 
     }
     return nil
 }
+
+func GetPlayerEloByGameType(repo repository.PlayerRepository, userID int, gameType entity.GameType) (int, error) {
+    player, err := repo.GetByUserIDAndGameType(userID, gameType)
+    if err != nil {
+        return 0, err
+    }
+    return player.Rating, nil
+}
