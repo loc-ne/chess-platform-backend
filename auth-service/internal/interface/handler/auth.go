@@ -187,6 +187,18 @@ func RefreshToken(userRepo repository.UserRepository) gin.HandlerFunc {
     }
 }
 
+func Logout() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // Xóa cookie bằng cách set giá trị rỗng và maxAge âm
+        c.SetCookie("access_token", "", -1, "/", "", false, true)
+        c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+        c.JSON(http.StatusOK, APIResponse{
+            Status:  "success",
+            Message: "Logout successful",
+        })
+    }
+}
+
 func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository, ch *amqp091.Channel) {
     api := router.Group("/api/v1/auth")
     {
@@ -194,5 +206,6 @@ func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository, 
         api.POST("/register", Register(userRepo, ch))
         api.GET("/me", AuthMiddleware(), GetMe(userRepo))
         api.GET("/refresh_token", RefreshToken(userRepo))
+        api.POST("/logout", Logout())
     }
 }
