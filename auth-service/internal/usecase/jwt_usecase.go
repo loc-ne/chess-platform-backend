@@ -8,6 +8,8 @@ import (
     "github.com/locne/auth-service/internal/entity"
 	"github.com/locne/auth-service/internal/interface/repository"
 	"os"
+    "fmt"
+    "strings"
 )
 
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
@@ -50,4 +52,39 @@ func GenerateTokens(userRepo repository.UserRepository, user entity.User) (acces
 	}
 
     return accessToken, refreshToken, nil
+}
+
+func RefreshToken(userRepo repository.UserRepository, refreshToken string) (accessToken string, newRefreshToken string, err error) {
+    user, err := userRepo.FindByRefreshToken(refreshToken)
+    if err != nil {
+        return "", "", fmt.Errorf("invalid refresh token")
+    }
+    if !user.IsActive {
+        return "", "", fmt.Errorf("user is not active")
+    }
+    return GenerateTokens(userRepo, user)
+}
+
+func ValidateToken(tokenString string) (int, error) {
+    parts := strings.Split(tokenString, ".")
+    if len(parts) != 3 {
+        return 0, fmt.Errorf("invalid JWT format")
+    }
+
+    token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+            return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+        }
+        return jwtSecret, nil
+    })
+    if err != nil {
+        return 0, err
+    }
+    if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
+        if claims.ExpiresAt.After(time.Now()) {
+            return claims.Sub, nil
+        }
+        return 0, fmt.Errorf("token expired")
+    }
+    return 0, fmt.Errorf("invalid token")
 }

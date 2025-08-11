@@ -105,11 +105,107 @@ func Register(userRepo repository.UserRepository, ch *amqp091.Channel) gin.Handl
     }
 }
 
+func AuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        token, err := c.Cookie("access_token")
+        if err != nil || token == "" {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+            return
+        }
+
+        userID, err := usecase.ValidateToken(token) 
+        if err != nil {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+            return
+        }
+
+        c.Set("userID", userID) 
+        c.Next()
+    }
+}
+
+
+func GetMe(userRepo repository.UserRepository) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        userID, exists := c.Get("userID")
+        if !exists {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+            return
+        }
+
+        user, err := userRepo.FindByID(userID.(int))
+        if err != nil {
+            c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "user not found"})
+            return
+        }
+
+        c.JSON(http.StatusOK, APIResponse{
+            Status:  "success",
+            Message: "Success",
+            Data:    user,
+        })
+
+    }
+}
+
+func RefreshToken(userRepo repository.UserRepository) gin.HandlerFunc {
+    return func(c *gin.Context) {
+        refreshToken, err := c.Cookie("refresh_token")
+        if err != nil || refreshToken == "" {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
+            return
+        }
+
+        accessToken, newRefreshToken, err := usecase.RefreshToken(userRepo, refreshToken)
+        if err != nil {
+            c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+            return
+        }
+
+        c.SetCookie(
+            "access_token",
+            accessToken,
+            7*24*60*60, // maxAge: 7 day
+            "/",        // path
+            "",         // domain 
+            false,      // secure: false (true if HTTPS)
+            true,       // httpOnly: true
+        )
+        c.SetCookie(
+            "refresh_token",
+            newRefreshToken,
+            7*24*60*60,
+            "/",
+            "",
+            false,
+            true,
+        )
+        c.JSON(http.StatusOK, APIResponse{
+            Status:  "success",
+            Message: "Token refreshed",
+        })
+    }
+}
+
+func Logout() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // Xóa cookie bằng cách set giá trị rỗng và maxAge âm
+        c.SetCookie("access_token", "", -1, "/", "", false, true)
+        c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+        c.JSON(http.StatusOK, APIResponse{
+            Status:  "success",
+            Message: "Logout successful",
+        })
+    }
+}
 
 func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository, ch *amqp091.Channel) {
     api := router.Group("/api/v1/auth")
     {
         api.POST("/login", Login(userRepo))
         api.POST("/register", Register(userRepo, ch))
+        api.GET("/me", AuthMiddleware(), GetMe(userRepo))
+        api.GET("/refresh_token", RefreshToken(userRepo))
+        api.POST("/logout", Logout())
     }
 }
