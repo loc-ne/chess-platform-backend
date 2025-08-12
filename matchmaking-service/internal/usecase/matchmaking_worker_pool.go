@@ -23,7 +23,7 @@ type WorkerPool struct {
     MQChannel   *amqp091.Channel
 }
 
-func NewWorkerPool(poolManager *PoolManager, workerCount int) *WorkerPool {
+func NewWorkerPool(poolManager *PoolManager, workerCount int, mqCh *amqp091.Channel) *WorkerPool {
     wp := &WorkerPool{
         Jobs: make(chan MatchmakingJob, 1000),
         PoolManager: poolManager,
@@ -134,7 +134,11 @@ func (wp *WorkerPool) worker() {
                 Username: opponent.UserName,
                 Rating:   opponent.Elo,
             },
-            TimeControl: job.TimeControl,
+            TimeControl: messagebroker.TimeControl{
+            Type:        job.TimeControl.Type,
+            InitialTime: job.TimeControl.InitialTime,
+            Increment:   job.TimeControl.Increment,
+            },
             Colors: messagebroker.Colors{
                 Player1: p1Color,
                 Player2: p2Color,
