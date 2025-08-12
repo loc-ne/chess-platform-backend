@@ -2,7 +2,7 @@ package handler
 
 import (
     "net/http"
-    "github.com/locne/auth-service/internal/usecase"
+    "github.com/locne/matchmaking-service/internal/usecase"
     "github.com/gin-gonic/gin"
     "fmt"
 )
@@ -28,10 +28,10 @@ func JoinMatchmakingPool(workerPool *usecase.WorkerPool) gin.HandlerFunc {
             return
         }
         key := fmt.Sprintf("%d_%d", req.TimeControl.InitialTime, req.TimeControl.Increment)
-        done := make(chan *usecase.Player)
         workerPool.Jobs <- usecase.MatchmakingJob{
             PoolKey: key,
             Player:  req.Player,
+            TimeControl: req.TimeControl,
         }
         c.JSON(http.StatusOK, APIResponse{
             Status:  "waiting",

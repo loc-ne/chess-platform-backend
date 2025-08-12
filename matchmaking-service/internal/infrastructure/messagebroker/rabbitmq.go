@@ -24,7 +24,7 @@ func ConnectRabbit() (*amqp091.Connection, *amqp091.Channel, error) {
     }
 
     _, err = ch.QueueDeclare(
-        "", // name
+        "game.create", // name
         true,         // durable
         false,        // autoDelete
         false,        // exclusive

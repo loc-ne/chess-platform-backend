@@ -189,7 +189,6 @@ func RefreshToken(userRepo repository.UserRepository) gin.HandlerFunc {
 
 func Logout() gin.HandlerFunc {
     return func(c *gin.Context) {
-        // Xóa cookie bằng cách set giá trị rỗng và maxAge âm
         c.SetCookie("access_token", "", -1, "/", "", false, true)
         c.SetCookie("refresh_token", "", -1, "/", "", false, true)
         c.JSON(http.StatusOK, APIResponse{
@@ -205,7 +204,7 @@ func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository, 
         api.POST("/login", Login(userRepo))
         api.POST("/register", Register(userRepo, ch))
         api.GET("/me", AuthMiddleware(), GetMe(userRepo))
-        api.GET("/refresh_token", RefreshToken(userRepo))
+        api.POST("/refresh_token", RefreshToken(userRepo))
         api.POST("/logout", Logout())
     }
 }
