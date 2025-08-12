@@ -11,6 +11,7 @@ import (
 type MatchmakingJob struct {
     PoolKey string
     Player  Player
+    TimeControl TimeControl
 }
 
 type WorkerPool struct {
@@ -58,16 +59,15 @@ func getPlayerElo(playerServiceURL string, userID int, gameType string) (int, er
 func (wp *WorkerPool) worker() {
     for job := range wp.Jobs {
         playerServiceURL := "http://localhost:3002"
-        elo, err := getPlayerElo(playerServiceURL, job.Player.UserId, job.Player.GameType)
+        elo, err := getPlayerElo(playerServiceURL, job.Player.UserId, job.TimeControl.Type)
         if err == nil {
             job.Player.Elo = elo
         }
         opponent := wp.PoolManager.FindNearestElo(job.PoolKey, job.Player.Elo)
         if opponent != nil {
-            // to do MQ
+            
         } else {
             wp.PoolManager.Join(job.PoolKey, job.Player)
-            job.Done <- nil
         }
     }
 }
