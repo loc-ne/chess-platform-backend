@@ -26,11 +26,7 @@ type CreateGameMsg struct {
     Colors      Colors          `json:"colors"`
 }
 
-func PublishGameCreate(ch *amqp091.Channel, userID int, elo int) error {
-    msg := PlayerRegisterMsg{
-        UserID: userID,
-        Elo:    elo,
-    }
+func PublishGameCreate(ch *amqp091.Channel, msg CreateGameMsg) error {
     body, err := json.Marshal(msg)
     if err != nil {
         return fmt.Errorf("marshal message error: %v", err)
@@ -38,7 +34,7 @@ func PublishGameCreate(ch *amqp091.Channel, userID int, elo int) error {
 
     err = ch.Publish(
         "",              // exchange
-        "game.create", // routing key (queue name)
+        "game.create",   // routing key (queue name)
         false,           // mandatory
         false,           // immediate
         amqp091.Publishing{
