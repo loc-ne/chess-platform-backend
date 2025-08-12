@@ -4,7 +4,6 @@ import (
     "encoding/json"
     "fmt"
     "github.com/rabbitmq/amqp091-go"
-    "github.com/locne/matchmaking-service/internal/usecase"
 )
 
 type PlayerGameInfo struct {
@@ -18,11 +17,16 @@ type Colors struct {
     Player2 string `json:"player2"` 
 }
 
+type TimeControl struct {
+    Type        string `json:"type"`
+    InitialTime int    `json:"initialTime"`
+    Increment   int    `json:"increment"`
+}
 
 type CreateGameMsg struct {
     Player1     PlayerGameInfo   `json:"player1"`
     Player2     PlayerGameInfo   `json:"player2"`
-    TimeControl usecase.TimeControl `json:"timeControl"`
+    TimeControl TimeControl `json:"timeControl"`
     Colors      Colors          `json:"colors"`
 }
 

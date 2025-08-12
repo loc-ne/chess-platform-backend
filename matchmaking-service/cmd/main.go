@@ -2,19 +2,30 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
+    "github.com/joho/godotenv"
     "github.com/locne/matchmaking-service/internal/interface/handler"
     "github.com/locne/matchmaking-service/internal/usecase"
-	"github.com/gin-contrib/cors"
+    "github.com/locne/matchmaking-service/internal/infrastructure/messagebroker"
+    "github.com/gin-contrib/cors"
+    "log"
 )
 
 func main() {
+    godotenv.Load("internal/infrastructure/config/.env")
     poolManager := usecase.NewPoolManager()
 
-    workerPool := usecase.NewWorkerPool(poolManager, 3)
+    mqConn, mqCh, err := messagebroker.ConnectRabbit()
+    if err != nil {
+        log.Fatalf("RabbitMQ connection error: %v", err)
+    }
+    defer mqConn.Close()
+    defer mqCh.Close()
+
+    workerPool := usecase.NewWorkerPool(poolManager, 3, mqCh)
 
     router := gin.Default()
 
-	router.Use(cors.New(cors.Config{
+    router.Use(cors.New(cors.Config{
         AllowOrigins:     []string{"http://localhost:3000"},
         AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
         AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
