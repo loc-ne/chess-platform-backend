@@ -4,6 +4,9 @@ import (
     "fmt"
     "time"
     "github.com/locne/game-service/internal/usecase/engine"
+    //"github.com/locne/game-service/internal/interface/repository"
+    "github.com/locne/game-service/internal/entity"
+    "strconv"
 )
 
 func (g *Game) MakeMove(playerID int, from, to engine.Position, gm *GameManager) error {
@@ -95,7 +98,6 @@ func (g *Game) MakeMove(playerID int, from, to engine.Position, gm *GameManager)
         g.endGame(winner, reason, gm)
     }
 
-    g.logMove(player, from, to)
     return nil
 }
 
@@ -241,76 +243,67 @@ func (g *Game) isGameFinished(gm *GameManager) (bool, string, string) {
 }
 
 func (g *Game) endGame(winner string, reason string, gm *GameManager) {
-    // whitePlayer := g.getPlayerByColor("white")
-    // blackPlayer := g.getPlayerByColor("black")
+    whitePlayer := g.getPlayerByColor("white")
+    blackPlayer := g.getPlayerByColor("black")
     
-    // result := "1/2-1/2" // draw
-    // winnerId := "none"
+    result := "1/2-1/2" // draw
+    winnerId := "none"
     
-    // if winner == "white" {
-    //     result = "1-0"
-    //     winnerId = strconv.Itoa(whitePlayer.ID)
-    // } else if winner == "black" {
-    //     result = "0-1"
-    //     winnerId = strconv.Itoa(blackPlayer.ID)
-    // }
+    if winner == "white" {
+        result = "1-0"
+        winnerId = strconv.Itoa(whitePlayer.ID)
+    } else if winner == "black" {
+        result = "0-1"
+        winnerId = strconv.Itoa(blackPlayer.ID)
+    }
 
-    // chessEngine := &engine.ChessEngine{}
-    // castlingStr := g.GameState.CastlingRights.ToFEN()
-    // enPassantStr := g.GameState.EnPassantSquare.ToFEN()
+    chessEngine := &engine.ChessEngine{}
+    castlingStr := g.GameState.CastlingRights.ToFEN()
+    enPassantStr := g.GameState.EnPassantSquare.ToFEN()
     
-    // gameModel := model.Game{
-    //     GameID: g.ID,
-    //     Players: struct {
-    //         White model.PlayerInfo `bson:"white"`
-    //         Black model.PlayerInfo `bson:"black"`
-    //     }{
-    //         White: model.PlayerInfo{
-    //             UserID:   whitePlayer.ID,
-    //             Username: whitePlayer.Username,
-    //             Elo:      whitePlayer.Rating,
-    //         },
-    //         Black: model.PlayerInfo{
-    //             UserID:   blackPlayer.ID,
-    //             Username: blackPlayer.Username,
-    //             Elo:      blackPlayer.Rating,
-    //         },
-    //     },
-    //     Moves:         moveHistoryToNotationList(g.GameState.MoveHistory),
-    //     Result:        result,
-    //     CreatedAt:     g.CreatedAt,
-    //     TimeControl:   strconv.Itoa(g.TimeControl.InitialTime/60) + "+" + strconv.Itoa(g.TimeControl.Increment),
-    //     GameType:      g.TimeControl.Type,
-    //     WinnerID:      winnerId,
-    //     WhiteTimeLeft: g.WhiteTimeLeft,
-    //     BlackTimeLeft: g.BlackTimeLeft,
-    //     Reason:        reason,
-    //     LastFen: chessEngine.BitboardToFEN(
-    //         g.GameState.Bitboards,
-    //         g.GameState.ActiveColor,
-    //         castlingStr,
-    //         enPassantStr,
-    //         g.GameState.HalfMoveClock,
-    //         g.GameState.FullMoveNumber,
-    //     ),
-    // }
+    gameModel := entity.Game{
+        GameID: g.ID,
+        Players: struct {
+            White entity.PlayerInfo `bson:"white"`
+            Black entity.PlayerInfo `bson:"black"`
+        }{
+            White: entity.PlayerInfo{
+                UserID:   whitePlayer.ID,
+                Username: whitePlayer.Username,
+                Elo:      whitePlayer.Rating,
+            },
+            Black: entity.PlayerInfo{
+                UserID:   blackPlayer.ID,
+                Username: blackPlayer.Username,
+                Elo:      blackPlayer.Rating,
+            },
+        },
+        Moves:         moveHistoryToNotationList(g.GameState.MoveHistory),
+        Result:        result,
+        CreatedAt:     g.CreatedAt,
+        TimeControl:   strconv.Itoa(g.TimeControl.InitialTime/60) + "+" + strconv.Itoa(g.TimeControl.Increment),
+        GameType:      g.TimeControl.Type,
+        WinnerID:      winnerId,
+        WhiteTimeLeft: g.WhiteTimeLeft,
+        BlackTimeLeft: g.BlackTimeLeft,
+        Reason:        reason,
+        LastFen: chessEngine.BitboardToFEN(
+            g.GameState.Bitboards,
+            g.GameState.ActiveColor,
+            castlingStr,
+            enPassantStr,
+            g.GameState.HalfMoveClock,
+            g.GameState.FullMoveNumber,
+        ),
+    }
+    fmt.Print(gameModel)
 
-    // // Send to jobs channel for database storage
-    // select {
-    // case g.jobs <- gameModel:
-    // default:
-    //     fmt.Printf("Failed to send game %s to jobs channel\n", g.ID)
-    // }
-
-    // // Publish room end event
-    // endUpdate := StateUpdateMessage{
-    //     Type:   "gameEnd",
-    //     RoomID: g.ID,
-    // }
-    // gm.PublishStateUpdate(endUpdate)
+    endUpdate := StateUpdateMessage{
+        Type:   "gameEnd",
+        RoomID: g.ID,
+    }
+    gm.PublishStateUpdate(endUpdate)
     
-    // Remove game from manager
-    // to do save db later
     gm.RemoveGame(g.ID)
 }
 
