@@ -1,6 +1,9 @@
 package usecase
 
-import "github.com/petar/GoLLRB/llrb"
+import (
+    "github.com/petar/GoLLRB/llrb"
+    "sync"
+)
 
 type TimeControl struct {
     Type        string `json:"type"`
@@ -14,9 +17,10 @@ type Player struct {
     Elo      int
 }
 
-
 type PoolManager struct {
     Pools map[string]*llrb.LLRB
+    playerIndex map[string]map[int]PlayerItem
+    mutex sync.RWMutex
 }
 
 func NewPoolManager() *PoolManager {
@@ -32,10 +36,17 @@ func NewPoolManager() *PoolManager {
         "30_0":  llrb.New(),
         "30_20": llrb.New(),
     }
+    
+    playerIndex := make(map[string]map[int]PlayerItem)
+    for key := range pools {
+        playerIndex[key] = make(map[int]PlayerItem)
+    }
+    
     return &PoolManager{
-        Pools: pools,
-    }}
-
+        Pools:       pools,
+        playerIndex: playerIndex,
+    }
+}
 
 type PlayerItem struct {
     Player Player
@@ -46,55 +57,97 @@ func (p PlayerItem) Less(than llrb.Item) bool {
 }
 
 func (pm *PoolManager) Join(poolKey string, player Player) {
+    pm.mutex.Lock()
+    defer pm.mutex.Unlock()
+    
     tree, ok := pm.Pools[poolKey]
     if !ok {
         tree = llrb.New()
         pm.Pools[poolKey] = tree
+        pm.playerIndex[poolKey] = make(map[int]PlayerItem)
     }
-    tree.ReplaceOrInsert(PlayerItem{Player: player})
+    
+    playerItem := PlayerItem{Player: player}
+    
+    if existingItem, exists := pm.playerIndex[poolKey][player.UserId]; exists {
+        tree.Delete(existingItem)
+    }
+    
+    tree.ReplaceOrInsert(playerItem)
+    pm.playerIndex[poolKey][player.UserId] = playerItem
 }
 
 func (pm *PoolManager) Leave(poolKey string, userId int) {
+    pm.mutex.Lock()
+    defer pm.mutex.Unlock()
+    
     tree, ok := pm.Pools[poolKey]
     if !ok {
         return
     }
-    var toDelete PlayerItem
-    found := false
-    tree.AscendGreaterOrEqual(PlayerItem{Player: Player{Elo: 0}}, func(item llrb.Item) bool {
-        p := item.(PlayerItem)
-        if p.Player.UserId == userId {
-            toDelete = p
-            found = true
-            return false 
-        }
-        return true
-    })
-    if found {
-        tree.Delete(toDelete)
+    
+    if playerItem, exists := pm.playerIndex[poolKey][userId]; exists {
+        tree.Delete(playerItem)
+        delete(pm.playerIndex[poolKey], userId)
     }
 }
 
 func (pm *PoolManager) FindNearestElo(poolKey string, targetElo int) *Player {
+    pm.mutex.Lock()
+    defer pm.mutex.Unlock()
+    
     tree, ok := pm.Pools[poolKey]
     if !ok || tree.Len() == 0 {
         return nil
     }
 
-    var nearest *Player
-    var minDiff int
-
-    tree.AscendGreaterOrEqual(PlayerItem{Player: Player{Elo: 0}}, func(item llrb.Item) bool {
-        p := item.(PlayerItem).Player
-        diff := abs(p.Elo - targetElo)
-        if nearest == nil || diff < minDiff {
-            nearest = &p
-            minDiff = diff
+    targetItem := PlayerItem{Player: Player{Elo: targetElo}}
+    var candidates []PlayerItem
+    
+    tree.AscendGreaterOrEqual(targetItem, func(item llrb.Item) bool {
+        candidates = append(candidates, item.(PlayerItem))
+        return false
+    })
+    
+    tree.DescendLessOrEqual(targetItem, func(item llrb.Item) bool {
+        playerItem := item.(PlayerItem)
+        if playerItem.Player.Elo < targetElo {
+            candidates = append(candidates, playerItem)
+            return false
         }
         return true
     })
+    
+    if len(candidates) == 0 {
+        return nil
+    }
+    
+    closestItem := candidates[0]
+    minDiff := abs(candidates[0].Player.Elo - targetElo)
+    
+    for i := 1; i < len(candidates); i++ {
+        diff := abs(candidates[i].Player.Elo - targetElo)
+        if diff < minDiff {
+            closestItem = candidates[i]
+            minDiff = diff
+        }
+    }
+    
+    tree.Delete(closestItem)
+    delete(pm.playerIndex[poolKey], closestItem.Player.UserId)
+    
+    result := closestItem.Player
+    return &result
+}
 
-    return nearest
+func (pm *PoolManager) GetPoolSize(poolKey string) int {
+    pm.mutex.RLock()
+    defer pm.mutex.RUnlock()
+    
+    if tree, ok := pm.Pools[poolKey]; ok {
+        return tree.Len()
+    }
+    return 0
 }
 
 func abs(x int) int {
