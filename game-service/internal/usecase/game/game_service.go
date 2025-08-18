@@ -8,6 +8,7 @@ import (
     "sync"
     "github.com/go-redis/redis/v8"
     "github.com/locne/game-service/internal/usecase/engine"
+    "github.com/locne/game-service/internal/interface/repository"
 )
 
 type Player struct {
@@ -24,6 +25,13 @@ type TimeControl struct {
     Increment   int    `json:"increment"`   
 }
 
+type DrawOffer struct {
+    ID       string    `json:"id"`
+    FromID   int       `json:"fromId"`
+    ToID     int       `json:"toId"`
+    CreatedAt time.Time `json:"createdAt"`
+}
+
 type Game struct {
     ID            string                 `json:"id"`
     Players       map[int]*Player        `json:"players"`
@@ -35,14 +43,16 @@ type Game struct {
     LastMoveTime  time.Time              `json:"lastMoveTime"`
     CreatedAt     time.Time              `json:"createdAt"`
     UpdatedAt     time.Time              `json:"updatedAt"`
+    DrawOffers    map[string]*DrawOffer  `json:"drawOffers"` // Active draw offers
     mutex         sync.RWMutex
 }
 
 type GameManager struct {
-    redis   *redis.Client
-    games   map[string]*Game
-    mutex   sync.RWMutex
-    ctx     context.Context
+    redis    *redis.Client
+    games    map[string]*Game
+    mutex    sync.RWMutex
+    ctx      context.Context
+    savePool *GameSaveWorkerPool
 }
 
 type MoveMessage struct {
@@ -56,6 +66,14 @@ type MoveMessage struct {
     Promotion string `json:"promotion,omitempty"`
 }
 
+type GameActionMessage struct {
+    Type     string `json:"type"` // "gameAction"
+    RoomID   string `json:"roomId"`
+    PlayerID int    `json:"playerId"`
+    Action   string `json:"action"` // "resign", "drawOffer", "drawAccept", "drawDecline"
+    OfferID  string `json:"offerId,omitempty"` // For draw offers
+}
+
 type StateUpdateMessage struct {
     Type          string                  `json:"type"`
     RoomID        string                  `json:"roomId"`
@@ -64,17 +82,31 @@ type StateUpdateMessage struct {
     Player2       Player                  `json:"player2,omitempty"`
     WhiteTimeLeft int                     `json:"whiteTimeLeft,omitempty"`
     BlackTimeLeft int                     `json:"blackTimeLeft,omitempty"`
+    MoveHistory   []engine.MoveNotation   `json:"moveHistory,omitempty"`
     Error         string                  `json:"error,omitempty"`
     Result        string                  `json:"result,omitempty"`
     Reason        string                  `json:"reason,omitempty"`
+    Winner        string                  `json:"winner,omitempty"`
+    OfferID       string                  `json:"offerId,omitempty"` // For draw offers
+    OfferFrom     int                     `json:"offerFrom,omitempty"` // Player ID who made the offer
+    TargetPlayerID *int                   `json:"targetPlayerId,omitempty"` // For targeted messages
 }
 
-func NewGameManager(redis *redis.Client, ctx context.Context) *GameManager {
+func NewGameManager(redis *redis.Client, ctx context.Context, repo repository.GameRepository) *GameManager {
     return &GameManager{
-        redis: redis,
-        games: make(map[string]*Game),
-        ctx:   ctx,
+        redis:    redis,
+        games:    make(map[string]*Game),
+        savePool: NewGameSaveWorkerPool(repo, 3),
+        ctx:      ctx,
     }
+}
+
+func (gm *GameManager) ListenChannels() {
+    // Start move listener
+    go gm.ListenMoves()
+    
+    // Start game action listener
+    go gm.ListenGameActions()
 }
 
 func (gm *GameManager) ListenMoves() {
@@ -87,6 +119,19 @@ func (gm *GameManager) ListenMoves() {
             continue
         }
         gm.ProcessMove(moveMsg)
+    }
+}
+
+func (gm *GameManager) ListenGameActions() {
+    pubsub := gm.redis.Subscribe(gm.ctx, "game_action")
+    defer pubsub.Close()
+
+    for msg := range pubsub.Channel() {
+        var actionMsg GameActionMessage
+        if err := json.Unmarshal([]byte(msg.Payload), &actionMsg); err != nil {
+            continue
+        }
+        gm.ProcessGameAction(actionMsg)
     }
 }
 
@@ -131,9 +176,180 @@ func (gm *GameManager) ProcessMove(moveMsg MoveMessage) {
         },
         WhiteTimeLeft: game.WhiteTimeLeft,
         BlackTimeLeft: game.BlackTimeLeft,
+        MoveHistory: game.GameState.MoveHistory,
     }
     
     gm.PublishStateUpdate(stateUpdate)
+}
+
+func (gm *GameManager) ProcessGameAction(actionMsg GameActionMessage) {
+    gm.mutex.RLock()
+    game, exists := gm.games[actionMsg.RoomID]
+    gm.mutex.RUnlock()
+    
+    if !exists {
+        gm.PublishError(actionMsg.RoomID, "Game not found")
+        return
+    }
+
+    switch actionMsg.Action {
+    case "resign":
+        gm.handleResign(game, actionMsg.PlayerID)
+    case "drawOffer":
+        gm.handleDrawOffer(game, actionMsg.PlayerID)
+    case "drawAccept":
+        gm.handleDrawAccept(game, actionMsg.PlayerID, actionMsg.OfferID)
+    case "drawDecline":
+        gm.handleDrawDecline(game, actionMsg.PlayerID, actionMsg.OfferID)
+    default:
+        gm.PublishError(actionMsg.RoomID, "Unknown action: "+actionMsg.Action)
+    }
+}
+
+func (gm *GameManager) handleResign(game *Game, playerID int) {
+    game.mutex.Lock()
+    defer game.mutex.Unlock()
+    
+    // Determine winner (opponent of resigning player)
+    var winner string
+    for _, player := range game.Players {
+        if player.ID != playerID {
+            winner = player.Color
+            break
+        }
+    }
+    
+    // End game
+    update := StateUpdateMessage{
+        Type:   "gameEnd",
+        RoomID: game.ID,
+        Result: "resignation",
+        Winner: winner,
+        Reason: "Player resigned",
+    }
+    
+    gm.PublishStateUpdate(update)
+    
+    // Save game to database
+    gm.saveGameResult(game, winner, "resignation")
+    
+    // Remove game from active games
+    gm.RemoveGame(game.ID)
+}
+
+func (gm *GameManager) handleDrawOffer(game *Game, playerID int) {
+    game.mutex.Lock()
+    defer game.mutex.Unlock()
+    
+    // Generate offer ID
+    offerID := fmt.Sprintf("%s_%d_%d", game.ID, playerID, time.Now().Unix())
+    
+    // Find opponent
+    var opponentID int
+    for _, player := range game.Players {
+        if player.ID != playerID {
+            opponentID = player.ID
+            break
+        }
+    }
+    
+    // Create draw offer
+    offer := &DrawOffer{
+        ID:        offerID,
+        FromID:    playerID,
+        ToID:      opponentID,
+        CreatedAt: time.Now(),
+    }
+    
+    // Initialize DrawOffers map if nil
+    if game.DrawOffers == nil {
+        game.DrawOffers = make(map[string]*DrawOffer)
+    }
+    
+    // Store offer
+    game.DrawOffers[offerID] = offer
+    
+    // Notify opponent only (targeted message)
+    update := StateUpdateMessage{
+        Type:           "drawOffer",
+        RoomID:         game.ID,
+        OfferID:        offerID,
+        OfferFrom:      playerID,
+        TargetPlayerID: &opponentID, // 🎯 Target specific player
+    }
+    
+    gm.PublishStateUpdate(update)
+}
+
+func (gm *GameManager) handleDrawAccept(game *Game, playerID int, offerID string) {
+    game.mutex.Lock()
+    defer game.mutex.Unlock()
+    
+    // Check if offer exists
+    offer, exists := game.DrawOffers[offerID]
+    if !exists {
+        gm.PublishError(game.ID, "Draw offer not found")
+        return
+    }
+    
+    // Check if player is the recipient of the offer
+    if offer.ToID != playerID {
+        gm.PublishError(game.ID, "You cannot accept this draw offer")
+        return
+    }
+    
+    // End game with draw
+    update := StateUpdateMessage{
+        Type:   "gameEnd",
+        RoomID: game.ID,
+        Result: "draw",
+        Reason: "Draw by agreement",
+    }
+    
+    gm.PublishStateUpdate(update)
+    
+    // Save game to database
+    gm.saveGameResult(game, "", "draw")
+    
+    // Remove game from active games
+    gm.RemoveGame(game.ID)
+}
+
+func (gm *GameManager) handleDrawDecline(game *Game, playerID int, offerID string) {
+    game.mutex.Lock()
+    defer game.mutex.Unlock()
+    
+    // Check if offer exists
+    offer, exists := game.DrawOffers[offerID]
+    if !exists {
+        gm.PublishError(game.ID, "Draw offer not found")
+        return
+    }
+    
+    // Check if player is the recipient of the offer
+    if offer.ToID != playerID {
+        gm.PublishError(game.ID, "You cannot decline this draw offer")
+        return
+    }
+    
+    // Remove offer
+    delete(game.DrawOffers, offerID)
+    
+    // Notify that offer was declined
+    update := StateUpdateMessage{
+        Type:    "drawDeclined",
+        RoomID:  game.ID,
+        OfferID: offerID,
+    }
+    
+    gm.PublishStateUpdate(update)
+}
+
+func (gm *GameManager) saveGameResult(game *Game, winner string, result string) {
+    // Convert game to entity and save
+    // This will be implemented based on your entity structure
+    // For now, just log
+    fmt.Printf("Game %s ended: winner=%s, result=%s\n", game.ID, winner, result)
 }
 
 func (gm *GameManager) GetGameState(gameID string) (*StateUpdateMessage, error) {

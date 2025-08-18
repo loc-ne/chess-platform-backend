@@ -105,6 +105,7 @@ func createGameFromMessage(msg CreateGameMsg, gm *game.GameManager) error {
         LastMoveTime:  time.Now(),
         CreatedAt:     time.Now(),
         UpdatedAt:     time.Now(),
+        DrawOffers:    make(map[string]*game.DrawOffer), // Initialize draw offers map
     }
     
     gm.AddGame(newGame)

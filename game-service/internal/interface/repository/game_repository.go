@@ -2,79 +2,58 @@ package repository
 
 import (
     "context"
-    "errors"
-    "go.mongodb.org/mongo-driver/v2/bson"
-    "go.mongodb.org/mongo-driver/v2/mongo"
-    "github.com/locne/game-service/internal/entity"
     "fmt"
-)	
+    "log"
+    
+    "github.com/locne/game-service/internal/entity"
+    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo/options"
+)
 
 type GameRepository interface {
-    GetByID(ctx context.Context, id string) (entity.Game, error)
-    GetAll(ctx context.Context) ([]entity.Game, error)
-    Create(ctx context.Context, game entity.Game) error
-    Update(ctx context.Context, game entity.Game) error
-    Delete(ctx context.Context, id string) error
+    SaveGame(ctx context.Context, game entity.Game) error
+    SaveGamesBatch(ctx context.Context, games []entity.Game) error
 }
 
-type mongoGameRepo struct {
+type mongoGameRepository struct {
     collection *mongo.Collection
 }
 
-func NewMongoGameRepo(db *mongo.Database) GameRepository {
-    return &mongoGameRepo{
+func NewGameRepository(db *mongo.Database) GameRepository {
+    return &mongoGameRepository{
         collection: db.Collection("games"),
     }
 }
 
-func (r *mongoGameRepo) GetByID(ctx context.Context, gameId string) (entity.Game, error) {
-    var game entity.Game
-    filter := bson.M{"gameId": gameId}
-    err := r.collection.FindOne(ctx, filter).Decode(&game)
-    if err != nil {
-        fmt.Printf("GetByID error: %v (gameId=%s)\n", err, gameId)
-        return game, err
+func (r *mongoGameRepository) SaveGamesBatch(ctx context.Context, games []entity.Game) error {
+    if len(games) == 0 {
+        return nil
     }
-    return game, nil
+    
+    // Convert to interface slice for MongoDB
+    documents := make([]interface{}, len(games))
+    for i, game := range games {
+        documents[i] = game
+    }
+    
+    // Batch insert với ordered=false cho performance
+    opts := options.InsertMany().SetOrdered(false)
+    
+    result, err := r.collection.InsertMany(ctx, documents, opts)
+    if err != nil {
+        return fmt.Errorf("batch insert failed: %w", err)
+    }
+    
+    log.Printf("Batch inserted %d games, IDs: %v", 
+        len(result.InsertedIDs), result.InsertedIDs)
+    
+    return nil
 }
 
-func (r *mongoGameRepo) GetAll(ctx context.Context) ([]entity.Game, error) {
-    var games []entity.Game
-    cursor, err := r.collection.Find(ctx, bson.M{})
-    if err != nil {
-        return nil, err
-    }
-    defer cursor.Close(ctx)
-    for cursor.Next(ctx) {
-        var game entity.Game
-        if err := cursor.Decode(&game); err != nil {
-            return nil, err
-        }
-        games = append(games, game)
-    }
-    if err := cursor.Err(); err != nil {
-        return nil, err
-    }
-    return games, nil
-}
-
-func (r *mongoGameRepo) Create(ctx context.Context, game entity.Game) error {
+func (r *mongoGameRepository) SaveGame(ctx context.Context, game entity.Game) error {
     _, err := r.collection.InsertOne(ctx, game)
-    return err
-}
-
-func (r *mongoGameRepo) Update(ctx context.Context, game entity.Game) error {
-    if game.GameID == "" {
-        return errors.New("missing gameId")
+    if err != nil {
+        return fmt.Errorf("failed to save game: %w", err)
     }
-    filter := bson.M{"gameId": game.GameID}
-    update := bson.M{"$set": game}
-    _, err := r.collection.UpdateOne(ctx, filter, update)
-    return err
-}
-
-func (r *mongoGameRepo) Delete(ctx context.Context, gameId string) error {
-    filter := bson.M{"gameId": gameId}
-    _, err := r.collection.DeleteOne(ctx, filter)
-    return err
+    return nil
 }

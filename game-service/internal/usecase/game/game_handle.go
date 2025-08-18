@@ -261,7 +261,7 @@ func (g *Game) endGame(winner string, reason string, gm *GameManager) {
     castlingStr := g.GameState.CastlingRights.ToFEN()
     enPassantStr := g.GameState.EnPassantSquare.ToFEN()
     
-    gameModel := entity.Game{
+    game := entity.Game{
         GameID: g.ID,
         Players: struct {
             White entity.PlayerInfo `bson:"white"`
@@ -296,7 +296,7 @@ func (g *Game) endGame(winner string, reason string, gm *GameManager) {
             g.GameState.FullMoveNumber,
         ),
     }
-    fmt.Print(gameModel)
+    fmt.Print(game)
 
     endUpdate := StateUpdateMessage{
         Type:   "gameEnd",
@@ -305,6 +305,8 @@ func (g *Game) endGame(winner string, reason string, gm *GameManager) {
     gm.PublishStateUpdate(endUpdate)
     
     gm.RemoveGame(g.ID)
+
+    gm.savePool.SaveGame(game)
 }
 
 func (g *Game) getPlayerByColor(color string) *Player {

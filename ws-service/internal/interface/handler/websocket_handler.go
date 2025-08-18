@@ -31,6 +31,14 @@ type JoinMatchmakingMessage struct {
     Username string `json:"username"`
 }
 
+type GameActionMessage struct {
+    Type     string `json:"type"`     // "gameAction" 
+    RoomID   string `json:"roomId"`
+    PlayerID int    `json:"playerId"`
+    Action   string `json:"action"`   // "resign", "drawOffer", "drawAccept", "drawDecline"
+    OfferID  string `json:"offerId,omitempty"` // For draw offers
+}
+
 func RegisterWebSocketRoutes(router *gin.Engine, rm *usecase.RoomManager) {
     router.GET("/ws", func(c *gin.Context) {
         handleWebSocket(c.Writer, c.Request, rm)
@@ -175,6 +183,34 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, rm *usecase.RoomMan
                 log.Printf("Failed to publish move: %v", err)
                 rm.SendErrorToClient(currentRoomID, client.UserID, "Failed to process move")
             }
+
+        case "gameAction":
+            if client == nil {
+                log.Printf("Game action without joining room")
+                continue
+            }
+
+            var actionMsg GameActionMessage
+            if err := json.Unmarshal(messageData, &actionMsg); err != nil {
+                log.Printf("Invalid game action message: %v", err)
+                continue
+            }
+
+            // Convert to usecase.GameActionMessage
+            gameActionMsg := usecase.GameActionMessage{
+                Type:     "gameAction",
+                RoomID:   currentRoomID,
+                PlayerID: client.UserID,
+                Action:   actionMsg.Action,
+                OfferID:  actionMsg.OfferID,
+            }
+
+            if err := rm.PublishGameAction(gameActionMsg); err != nil {
+                log.Printf("Failed to publish game action: %v", err)
+                rm.SendErrorToClient(currentRoomID, client.UserID, "Failed to process game action")
+            }
+
+            log.Printf("User %d sent game action %s in room %s", client.UserID, actionMsg.Action, currentRoomID)
 
         case "leaveRoom":
             if client != nil && currentRoomID != "" {
