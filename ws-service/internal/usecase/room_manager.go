@@ -40,6 +40,14 @@ type MoveMessage struct {
     Promotion string `json:"promotion,omitempty"`
 }
 
+type GameActionMessage struct {
+    Type     string `json:"type"`     // "gameAction"
+    RoomID   string `json:"roomId"`
+    PlayerID int    `json:"playerId"`
+    Action   string `json:"action"`   // "resign", "drawOffer", "drawAccept", "drawDecline"
+    OfferID  string `json:"offerId,omitempty"` // For draw offers
+}
+
 type Player struct {
     ID       int    `json:"userId"`       
     Username string `json:"username"`
@@ -84,6 +92,12 @@ type ClientGameState struct {
     EnPassantSquare *Position       `json:"enPassantSquare"`
 }
 
+type MoveNotation struct {
+    MoveNumber int    `json:"moveNumber"`
+    White      string `json:"white"`
+    Black      string `json:"black"`
+}
+
 type StateUpdateMessage struct {
     Type          string          `json:"type"`
     RoomID        string          `json:"roomId"`
@@ -92,9 +106,14 @@ type StateUpdateMessage struct {
     Player2       Player          `json:"player2,omitempty"`
     WhiteTimeLeft int             `json:"whiteTimeLeft,omitempty"`
     BlackTimeLeft int             `json:"blackTimeLeft,omitempty"`
+    MoveHistory   []MoveNotation  `json:"moveHistory,omitempty"`
     Error         string          `json:"error,omitempty"`
     Result        string          `json:"result,omitempty"`
     Reason        string          `json:"reason,omitempty"`
+    Winner        string          `json:"winner,omitempty"`
+    OfferID       string          `json:"offerId,omitempty"` // For draw offers
+    OfferFrom     int             `json:"offerFrom,omitempty"` // Player ID who made the offer
+    TargetPlayerID *int           `json:"targetPlayerId,omitempty"` // For targeted messages
 }
 
 func NewRoomManager(redisClient *redis.Client) *RoomManager {
@@ -118,6 +137,8 @@ func (rm *RoomManager) ListenStateUpdates() {
         
         if stateUpdate.Type == "matchFound" {
             rm.handleMatchFound(stateUpdate)
+        } else if stateUpdate.TargetPlayerID != nil {
+            rm.SendToUser(stateUpdate.RoomID, *stateUpdate.TargetPlayerID, stateUpdate)
         } else {
             rm.BroadcastToRoom(stateUpdate.RoomID, stateUpdate)
         }
@@ -166,6 +187,15 @@ func (rm *RoomManager) PublishMove(moveMsg MoveMessage) error {
     }
 
     return rm.redis.Publish(rm.ctx, "move_in", data).Err()
+}
+
+func (rm *RoomManager) PublishGameAction(actionMsg GameActionMessage) error {
+    data, err := json.Marshal(actionMsg)
+    if err != nil {
+        return err
+    }
+
+    return rm.redis.Publish(rm.ctx, "game_action", data).Err()
 }
 
 func (rm *RoomManager) BroadcastToRoom(roomID string, message interface{}) {
@@ -272,5 +302,39 @@ func (rm *RoomManager) SendErrorToClient(roomID string, userID int, errorMsg str
     case client.Send <- data:
     default:
         log.Printf("Failed to send error to client %d", userID)
+    }
+}
+
+// SendToUser sends message to specific user in room
+func (rm *RoomManager) SendToUser(roomID string, userID int, message interface{}) {
+    rm.mutex.RLock()
+    room, exists := rm.rooms[roomID]
+    rm.mutex.RUnlock()
+
+    if !exists {
+        log.Printf("Room %s not found for targeted message", roomID)
+        return
+    }
+
+    room.mutex.RLock()
+    client, exists := room.Clients[userID]
+    room.mutex.RUnlock()
+
+    if !exists {
+        log.Printf("User %d not found in room %s for targeted message", userID, roomID)
+        return
+    }
+
+    data, err := json.Marshal(message)
+    if err != nil {
+        log.Printf("Error marshaling targeted message: %v", err)
+        return
+    }
+
+    select {
+    case client.Send <- data:
+        log.Printf("Sent targeted message to user %d in room %s", userID, roomID)
+    default:
+        log.Printf("User %d send channel full, skipping targeted message", userID)
     }
 }

@@ -1,6 +1,6 @@
 package engine
 
-
+//  import ("fmt")
 // Make move (basic implementation)
 func (ce *ChessEngine) MakeMove(game *BitboardGame, from Position, to Position) {
     piece := ce.GetPieceAt(*game, from)
@@ -22,17 +22,9 @@ func (ce *ChessEngine) MakeMove(game *BitboardGame, from Position, to Position) 
 }
 
 // Update game state after move
-func (ce *ChessEngine) UpdateGameState(game *BitboardGame, state *GameState, from Position, to Position) {
-    piece := ce.GetPieceAt(*game, from)
-    if piece == nil {
-        return
-    }
-    
+func (ce *ChessEngine) UpdateGameState(game *BitboardGame, state *GameState, from Position, to Position, piece *Piece) {
     // Switch active color
-    if state.ActiveColor == "white" {
-        state.ActiveColor = "black"
-    } else {
-        state.ActiveColor = "white"
+    if state.ActiveColor == "black" {
         state.MoveCount++
     }
     
@@ -99,15 +91,11 @@ func (ce *ChessEngine) UpdateEnPassantSquare(state *GameState, from Position, to
             Row: (from.Row + to.Row) / 2,
             Col: from.Col,
         }
-    }
+    } 
 }
 
 // Complete move execution with state update
 func (ce *ChessEngine) ExecuteMove(game *BitboardGame, state *GameState, from Position, to Position) bool {
-    // if !ce.ValidateMove(*game, *state, from, to, state.ActiveColor) {
-    //     return false
-    // }
-    
     // Handle special moves
     piece := ce.GetPieceAt(*game, from)
     if piece != nil {
@@ -122,9 +110,8 @@ func (ce *ChessEngine) ExecuteMove(game *BitboardGame, state *GameState, from Po
             ce.MakeMove(game, from, to)
         }
     }
-    
     // Update game state
-    ce.UpdateGameState(game, state, from, to)
+    ce.UpdateGameState(game, state, from, to, piece)
     
     return true
 }
@@ -144,7 +131,6 @@ func (ce *ChessEngine) ValidateMove(game BitboardGame, state GameState, from Pos
     
     // Generate valid moves for the piece
     validMoves := ce.GenerateMovesForPiece(game, state, from)
-
     // Check if target move is in valid moves
     for _, move := range validMoves {
         if move.Row == to.Row && move.Col == to.Col {

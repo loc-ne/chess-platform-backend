@@ -7,14 +7,22 @@ import (
     "github.com/go-redis/redis/v8"
     "context"
     "log"
+    "os"
+    "os/signal"
+    "syscall"
+    
     "github.com/locne/game-service/internal/usecase/game"
     "github.com/locne/game-service/internal/infrastructure/messagebroker"
+    "github.com/locne/game-service/internal/infrastructure/db"
+    "github.com/locne/game-service/internal/interface/repository"
 )
 
 func main() {
+    // Load environment variables
     godotenv.Load("internal/infrastructure/config/.env")
+    
+    // Setup Gin router
     router := gin.Default()
-
     router.Use(cors.New(cors.Config{
         AllowOrigins:     []string{"http://localhost:3000"},
         AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -23,6 +31,7 @@ func main() {
         AllowCredentials: true,
     }))
 
+    // Setup Redis client
     redisClient := redis.NewClient(&redis.Options{
         Addr:     "redis-15123.crce185.ap-seast-1-1.ec2.redns.redis-cloud.com:15123",
         Username: "default",
@@ -30,10 +39,23 @@ func main() {
         DB:       0,
     })
 
+    // Setup MongoDB connection
+    mongoDB, err := db.ConnectMongoDB()
+    if err != nil {
+        log.Fatalf("MongoDB connection error: %v", err)
+    }
+    defer mongoDB.Disconnect()
+
+    // Setup repository
+    gameRepo := repository.NewGameRepository(mongoDB.Database)
+
+    // Setup context
     ctx := context.Background()
 
-    gameManager := game.NewGameManager(redisClient, ctx)
+    // Setup GameManager with MongoDB repository
+    gameManager := game.NewGameManager(redisClient, ctx, gameRepo)
 
+    // Setup RabbitMQ
     mqConn, mqCh, err := messagebroker.ConnectRabbit()
     if err != nil {
         log.Fatalf("RabbitMQ connection error: %v", err)
@@ -41,9 +63,32 @@ func main() {
     defer mqConn.Close()
     defer mqCh.Close()
 
+    // Start consuming game creation messages
     messagebroker.ConsumeGameCreate(mqCh, gameManager)
 
-    go gameManager.ListenMoves()
+    // Start listening for moves and game actions
+    go gameManager.ListenChannels()
 
+    // Setup graceful shutdown
+    go func() {
+        sigCh := make(chan os.Signal, 1)
+        signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+        <-sigCh
+
+        log.Println(" Shutting down gracefully...")
+        
+        // Close connections
+        if err := mongoDB.Disconnect(); err != nil {
+            log.Printf("Error disconnecting MongoDB: %v", err)
+        }
+        
+        if err := redisClient.Close(); err != nil {
+            log.Printf("Error closing Redis: %v", err)
+        }
+        
+        os.Exit(0)
+    }()
+
+    log.Println(" Game Service started on port 3004")
     router.Run(":3004")
 }

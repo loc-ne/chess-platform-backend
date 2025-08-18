@@ -1,9 +1,11 @@
 package engine
 
+// import ("fmt")
+
 // Castling helper methods
 func (ce *ChessEngine) CanCastleKingside(game BitboardGame, state GameState, color string) bool {
     isWhite := color == "white"
-    
+
     // Check castling rights
     if isWhite && !state.CastlingRights.WhiteKingSide {
         return false
@@ -12,9 +14,9 @@ func (ce *ChessEngine) CanCastleKingside(game BitboardGame, state GameState, col
         return false
     }
     
-    kingRow := 7
+    kingRow := 0
     if !isWhite {
-        kingRow = 0
+        kingRow = 7
     }
     
     // Check if squares between king and rook are empty
@@ -28,7 +30,7 @@ func (ce *ChessEngine) CanCastleKingside(game BitboardGame, state GameState, col
     if !isWhite {
         enemyColor = "white"
     }
-    
+
     for _, square := range squaresBetween {
         // Square must be empty
         if ce.IsSquareOccupied(allPieces, square) {
@@ -59,9 +61,9 @@ func (ce *ChessEngine) CanCastleQueenside(game BitboardGame, state GameState, co
         return false
     }
     
-    kingRow := 7
+    kingRow := 0
     if !isWhite {
-        kingRow = 0
+        kingRow = 7
     }
     
     // Check if squares between king and rook are empty
