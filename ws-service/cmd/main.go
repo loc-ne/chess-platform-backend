@@ -1,15 +1,21 @@
 package main
 
 import (
+    "github.com/joho/godotenv"
     "github.com/gin-gonic/gin"
     "github.com/gin-contrib/cors"
     "github.com/go-redis/redis/v8"
     "github.com/locne/ws-service/internal/interface/handler"
     "github.com/locne/ws-service/internal/usecase"
-    "log"
+    "fmt"
+    "os"
 )
 
 func main() {
+    if os.Getenv("ENV") != "production" {
+        godotenv.Load("internal/infrastructure/config/.env")
+    }
+
     redisClient := redis.NewClient(&redis.Options{
         Addr:     "redis-15123.crce185.ap-seast-1-1.ec2.redns.redis-cloud.com:15123",
         Username: "default",
@@ -33,6 +39,9 @@ func main() {
     
     handler.RegisterWebSocketRoutes(router, roomManager)
     
-    log.Println("WebSocket Service starting on :3005")
-    router.Run(":3005")
+    port := os.Getenv("PORT")
+    fmt.Println("Server started on port:", port)
+    if runErr := router.Run(":" + port); runErr != nil {
+        panic("ListenAndServe: " + runErr.Error())
+    }
 }

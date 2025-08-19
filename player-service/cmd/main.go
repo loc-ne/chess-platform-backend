@@ -10,10 +10,13 @@ import (
     "github.com/locne/player-service/internal/entity"
 	"github.com/locne/player-service/internal/infrastructure/messagebroker"
     "github.com/gin-contrib/cors"
+    "os"
 )
 
 func main() {
-    godotenv.Load("internal/infrastructure/config/.env")
+    if os.Getenv("ENV") != "production" {
+        godotenv.Load("internal/infrastructure/config/.env")
+    }
     router := gin.Default()
 
     router.Use(cors.New(cors.Config{
@@ -42,8 +45,9 @@ func main() {
 
     handler.RegisterPlayerRoutes(router, playerRepository)
 
-    fmt.Println("Server started on :3002")
-    if runErr := router.Run(":3002"); runErr != nil {
+    port := os.Getenv("PORT")
+    fmt.Println("Server started on port:", port)
+    if runErr := router.Run(":" + port); runErr != nil {
         panic("ListenAndServe: " + runErr.Error())
     }
 }

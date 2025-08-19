@@ -8,10 +8,13 @@ import (
     "github.com/locne/matchmaking-service/internal/infrastructure/messagebroker"
     "github.com/gin-contrib/cors"
     "log"
+    "fmt"
 )
 
 func main() {
-    godotenv.Load("internal/infrastructure/config/.env")
+    if os.Getenv("ENV") != "production" {
+        godotenv.Load("internal/infrastructure/config/.env")
+    }
     poolManager := usecase.NewPoolManager()
 
     mqConn, mqCh, err := messagebroker.ConnectRabbit()
@@ -34,6 +37,9 @@ func main() {
     }))
 
     handler.RegisterMatchmakingRoutes(router, workerPool, poolManager)
-
-    router.Run(":3003")
+    port := os.Getenv("PORT")
+    fmt.Println("Server started on port:", port)
+    if runErr := router.Run(":" + port); runErr != nil {
+        panic("ListenAndServe: " + runErr.Error())
+    }
 }

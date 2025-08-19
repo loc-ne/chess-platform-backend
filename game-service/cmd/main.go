@@ -10,7 +10,7 @@ import (
     "os"
     "os/signal"
     "syscall"
-    
+    "fmt"
     "github.com/locne/game-service/internal/usecase/game"
     "github.com/locne/game-service/internal/infrastructure/messagebroker"
     "github.com/locne/game-service/internal/infrastructure/db"
@@ -19,7 +19,9 @@ import (
 
 func main() {
     // Load environment variables
-    godotenv.Load("internal/infrastructure/config/.env")
+    if os.Getenv("ENV") != "production" {
+        godotenv.Load("internal/infrastructure/config/.env")
+    }
     
     // Setup Gin router
     router := gin.Default()
@@ -88,7 +90,10 @@ func main() {
         
         os.Exit(0)
     }()
-
-    log.Println(" Game Service started on port 3004")
-    router.Run(":3004")
+    
+    port := os.Getenv("PORT")
+    fmt.Println("Server started on port:", port)
+    if runErr := router.Run(":" + port); runErr != nil {
+        panic("ListenAndServe: " + runErr.Error())
+    }
 }
