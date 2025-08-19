@@ -63,7 +63,6 @@ func Login(userRepo repository.UserRepository) gin.HandlerFunc {
 		// 	true,
 		// )
 
-        secure := c.Request.TLS != nil 
 
         http.SetCookie(c.Writer, &http.Cookie{
             Name:     "access_token",
@@ -217,7 +216,7 @@ func RefreshToken(userRepo repository.UserRepository) gin.HandlerFunc {
 
         http.SetCookie(c.Writer, &http.Cookie{
             Name:     "refresh_token",
-            Value:    refreshToken,
+            Value:    newRefreshToken,
             Path:     "/",
             Domain:   "",
             MaxAge:   7 * 24 * 60 * 60,
