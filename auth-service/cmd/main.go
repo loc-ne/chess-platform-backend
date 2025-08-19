@@ -10,10 +10,13 @@ import (
     "github.com/locne/auth-service/internal/entity"
     "github.com/locne/auth-service/internal/infrastructure/messagebroker"
     "github.com/gin-contrib/cors"
+    "os"
 )
 
 func main() {
-    godotenv.Load("internal/infrastructure/config/.env")
+    if os.Getenv("ENV") != "production" {
+        godotenv.Load("internal/infrastructure/config/.env")
+    }
     router := gin.Default()
 
     router.Use(cors.New(cors.Config{
@@ -41,8 +44,9 @@ func main() {
 
     handler.RegisterAuthRoutes(router, userRepository, ch)
 
-    fmt.Println("Server started on :3001")
-    if runErr := router.Run(":3001"); runErr != nil {
+    port := os.Getenv("PORT")
+    fmt.Println("Server started on port:", port)
+    if runErr := router.Run(":" + port); runErr != nil {
         panic("ListenAndServe: " + runErr.Error())
     }
 }
