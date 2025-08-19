@@ -151,7 +151,6 @@ func (gm *GameManager) ProcessMove(moveMsg MoveMessage) {
     gm.mutex.RUnlock()
     
     if !exists {
-        gm.PublishError(moveMsg.RoomID, "Game not found")
         return
     }
 
@@ -160,7 +159,6 @@ func (gm *GameManager) ProcessMove(moveMsg MoveMessage) {
     
     err := game.MakeMove(moveMsg.PlayerID, from, to, gm)
     if err != nil {
-        gm.PublishError(moveMsg.RoomID, err.Error())
         return
     }
 
@@ -188,7 +186,6 @@ func (gm *GameManager) ProcessGameAction(actionMsg GameActionMessage) {
     gm.mutex.RUnlock()
     
     if !exists {
-        gm.PublishError(actionMsg.RoomID, "Game not found")
         return
     }
 
@@ -208,9 +205,6 @@ func (gm *GameManager) ProcessGameAction(actionMsg GameActionMessage) {
 
 func (gm *GameManager) handleResign(game *Game, playerID int) {
     game.mutex.Lock()
-    defer game.mutex.Unlock()
-    
-    // Determine winner (opponent of resigning player)
     var winner string
     for _, player := range game.Players {
         if player.ID != playerID {
@@ -218,23 +212,12 @@ func (gm *GameManager) handleResign(game *Game, playerID int) {
             break
         }
     }
+
+    game.mutex.Unlock() 
     
-    // End game
-    update := StateUpdateMessage{
-        Type:   "gameEnd",
-        RoomID: game.ID,
-        Result: "resignation",
-        Winner: winner,
-        Reason: "Player resigned",
-    }
     
-    gm.PublishStateUpdate(update)
+    game.endGame(winner, "resignation", gm)
     
-    // Save game to database
-    gm.saveGameResult(game, winner, "resignation")
-    
-    // Remove game from active games
-    gm.RemoveGame(game.ID)
 }
 
 func (gm *GameManager) handleDrawOffer(game *Game, playerID int) {
@@ -275,7 +258,7 @@ func (gm *GameManager) handleDrawOffer(game *Game, playerID int) {
         RoomID:         game.ID,
         OfferID:        offerID,
         OfferFrom:      playerID,
-        TargetPlayerID: &opponentID, // 🎯 Target specific player
+        TargetPlayerID: &opponentID, 
     }
     
     gm.PublishStateUpdate(update)
@@ -283,36 +266,25 @@ func (gm *GameManager) handleDrawOffer(game *Game, playerID int) {
 
 func (gm *GameManager) handleDrawAccept(game *Game, playerID int, offerID string) {
     game.mutex.Lock()
-    defer game.mutex.Unlock()
     
     // Check if offer exists
     offer, exists := game.DrawOffers[offerID]
     if !exists {
-        gm.PublishError(game.ID, "Draw offer not found")
+        game.mutex.Unlock() 
         return
     }
     
     // Check if player is the recipient of the offer
     if offer.ToID != playerID {
-        gm.PublishError(game.ID, "You cannot accept this draw offer")
+        game.mutex.Unlock() 
         return
     }
     
-    // End game with draw
-    update := StateUpdateMessage{
-        Type:   "gameEnd",
-        RoomID: game.ID,
-        Result: "draw",
-        Reason: "Draw by agreement",
-    }
+    game.DrawOffers = make(map[string]*DrawOffer)
     
-    gm.PublishStateUpdate(update)
-    
-    // Save game to database
-    gm.saveGameResult(game, "", "draw")
-    
-    // Remove game from active games
-    gm.RemoveGame(game.ID)
+    game.mutex.Unlock() 
+
+    game.endGame("", "draw by agreement", gm) 
 }
 
 func (gm *GameManager) handleDrawDecline(game *Game, playerID int, offerID string) {
@@ -322,13 +294,11 @@ func (gm *GameManager) handleDrawDecline(game *Game, playerID int, offerID strin
     // Check if offer exists
     offer, exists := game.DrawOffers[offerID]
     if !exists {
-        gm.PublishError(game.ID, "Draw offer not found")
         return
     }
     
     // Check if player is the recipient of the offer
     if offer.ToID != playerID {
-        gm.PublishError(game.ID, "You cannot decline this draw offer")
         return
     }
     
@@ -343,13 +313,6 @@ func (gm *GameManager) handleDrawDecline(game *Game, playerID int, offerID strin
     }
     
     gm.PublishStateUpdate(update)
-}
-
-func (gm *GameManager) saveGameResult(game *Game, winner string, result string) {
-    // Convert game to entity and save
-    // This will be implemented based on your entity structure
-    // For now, just log
-    fmt.Printf("Game %s ended: winner=%s, result=%s\n", game.ID, winner, result)
 }
 
 func (gm *GameManager) GetGameState(gameID string) (*StateUpdateMessage, error) {

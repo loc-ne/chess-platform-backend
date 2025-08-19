@@ -182,15 +182,7 @@ func (g *Game) handleTimeOut(color string, gm *GameManager) {
         winner = "white"
     }
     reason := "timeout"
-    
-    resultUpdate := StateUpdateMessage{
-        Type:   "gameResult",
-        RoomID: g.ID,
-        Result: winner + " wins",
-        Reason: reason,
-    }
-    gm.PublishStateUpdate(resultUpdate)
-    
+
     g.endGame(winner, reason, gm)
 }
 
@@ -230,13 +222,6 @@ func (g *Game) isGameFinished(gm *GameManager) (bool, string, string) {
             winner = "black"
         }
 
-        resultUpdate := StateUpdateMessage{
-            Type:   "gameResult",
-            RoomID: g.ID,
-            Result: winner + " wins",
-            Reason: reason,
-        }
-        gm.PublishStateUpdate(resultUpdate)
     }
     
     return finished, winner, reason
@@ -301,6 +286,9 @@ func (g *Game) endGame(winner string, reason string, gm *GameManager) {
     endUpdate := StateUpdateMessage{
         Type:   "gameEnd",
         RoomID: g.ID,
+        Result: result,
+        Winner: winner,
+        Reason: reason,
     }
     gm.PublishStateUpdate(endUpdate)
     
