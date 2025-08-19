@@ -44,24 +44,48 @@ func Login(userRepo repository.UserRepository) gin.HandlerFunc {
             return
         }
 
-		c.SetCookie(
-			"access_token",
-			accessToken,
-			7*24*60*60, // maxAge: 7 day
-			"/",        // path
-			"",         // domain 
-			false,      // secure: false (true if HTTPS)
-			true,       // httpOnly: true
-		)
-		c.SetCookie(
-			"refresh_token",
-			refreshToken,
-			7*24*60*60,
-			"/",
-			"",
-			false,
-			true,
-		)
+		// c.SetCookie(
+		// 	"access_token",
+		// 	accessToken,
+		// 	7*24*60*60, // maxAge: 7 day
+		// 	"/",        // path
+		// 	"",         // domain 
+		// 	false,      // secure: false (true if HTTPS)
+		// 	true,       // httpOnly: true
+		// )
+		// c.SetCookie(
+		// 	"refresh_token",
+		// 	refreshToken,
+		// 	7*24*60*60,
+		// 	"/",
+		// 	"",
+		// 	false,
+		// 	true,
+		// )
+
+        secure := c.Request.TLS != nil 
+
+        http.SetCookie(c.Writer, &http.Cookie{
+            Name:     "access_token",
+            Value:    accessToken,
+            Path:     "/",
+            Domain:   "",
+            Secure:   true,
+            HttpOnly: true,
+            SameSite: http.SameSiteNoneMode,
+        }) 
+
+        http.SetCookie(c.Writer, &http.Cookie{
+            Name:     "refresh_token",
+            Value:    refreshToken,
+            Path:     "/",
+            Domain:   "",
+            MaxAge:   7 * 24 * 60 * 60,
+            Secure:   true,
+            HttpOnly: true,
+            SameSite: http.SameSiteNoneMode,
+        })
+
 		c.JSON(http.StatusOK, APIResponse{
 			Status:  "success",
 			Message: "Login successful",
@@ -162,24 +186,46 @@ func RefreshToken(userRepo repository.UserRepository) gin.HandlerFunc {
             return
         }
 
-        c.SetCookie(
-            "access_token",
-            accessToken,
-            7*24*60*60, // maxAge: 7 day
-            "/",        // path
-            "",         // domain 
-            false,      // secure: false (true if HTTPS)
-            true,       // httpOnly: true
-        )
-        c.SetCookie(
-            "refresh_token",
-            newRefreshToken,
-            7*24*60*60,
-            "/",
-            "",
-            false,
-            true,
-        )
+        // c.SetCookie(
+        //     "access_token",
+        //     accessToken,
+        //     7*24*60*60, // maxAge: 7 day
+        //     "/",        // path
+        //     "",         // domain 
+        //     false,      // secure: false (true if HTTPS)
+        //     true,       // httpOnly: true
+        // )
+        // c.SetCookie(
+        //     "refresh_token",
+        //     newRefreshToken,
+        //     7*24*60*60,
+        //     "/",
+        //     "",
+        //     false,
+        //     true,
+        // )
+
+        http.SetCookie(c.Writer, &http.Cookie{
+            Name:     "access_token",
+            Value:    accessToken,
+            Path:     "/",
+            Domain:   "",
+            Secure:   true,
+            HttpOnly: true,
+            SameSite: http.SameSiteNoneMode,
+        }) 
+
+        http.SetCookie(c.Writer, &http.Cookie{
+            Name:     "refresh_token",
+            Value:    refreshToken,
+            Path:     "/",
+            Domain:   "",
+            MaxAge:   7 * 24 * 60 * 60,
+            Secure:   true,
+            HttpOnly: true,
+            SameSite: http.SameSiteNoneMode,
+        })
+
         c.JSON(http.StatusOK, APIResponse{
             Status:  "success",
             Message: "Token refreshed",
