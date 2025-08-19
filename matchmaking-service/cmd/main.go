@@ -29,8 +29,9 @@ func main() {
 
     router := gin.Default()
 
+    frontendEnv := os.Getenv("FRONTEND_ORIGIN")
     router.Use(cors.New(cors.Config{
-        AllowOrigins:     []string{"http://localhost:3000"},
+        AllowOrigins:     []string{"http://localhost:3000", frontendEnv},
         AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
         AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
         ExposeHeaders:    []string{"Content-Length"},
