@@ -1,5 +1,6 @@
 import { Piece, Position } from './types';
-import { ClientGameState } from './GameState';
+import { ClientGameState, CastlingRights } from './GameState';
+import {FenUtils} from './Fen'
 
 
 const BOARD_SIZE = 8;
@@ -186,7 +187,7 @@ export const ChessEngine = {
                 col: 7 - position.col
             };
         }
-        return { ...position }; 
+        return { ...position };
     },
 
     //  4. Batch position conversion
@@ -541,7 +542,7 @@ export const ChessEngine = {
             const newGame = this.cloneBitboards(game);
 
             this.makeMove(newGame, fromPosition, move);
-            
+
             if (!this.isInCheck(newGame, state.activeColor)) {
                 legalMoves.push(move);
             }
@@ -586,6 +587,88 @@ export const ChessEngine = {
 
         //  4. Handle special moves
         this.handleSpecialMoves(game, from, to, piece);
+    },
+
+    updateGameState(gameState: ClientGameState, from: Position, to: Position): ClientGameState {
+        const piece = ChessEngine.getPieceAt(gameState.bitboards, from);
+        if (!piece) return gameState;
+
+        // 1. Clone bitboards and make move
+        const newBitboards = ChessEngine.cloneBitboards(gameState.bitboards);
+        ChessEngine.makeMove(newBitboards, from, to);
+
+        // 2. Update activeColor
+        const newActiveColor: 'white' | 'black' = gameState.activeColor === 'white' ? 'black' : 'white';
+
+        // 3. Update castling rights
+        const newCastlingRights = this.updateCastlingRights(gameState.castlingRights, from, to, piece);
+
+        // 4. Update en passant square
+        const newEnPassantSquare = this.updateEnPassantSquare(from, to, piece);
+
+        // 5. Generate new FEN
+        const newFen = FenUtils.convertBitboardToFen(
+            newBitboards,
+            newActiveColor === 'white' ? 'w' : 'b',
+            FenUtils.castlingRightsToString(newCastlingRights),
+            newEnPassantSquare ? FenUtils.positionToAlgebraic(newEnPassantSquare) : '-',
+            0, // halfmove clock - cần implement
+            Math.floor(gameState.currentFen.split(' ')[5] ? parseInt(gameState.currentFen.split(' ')[5]) : 1) + (newActiveColor === 'white' ? 1 : 0)
+        );
+
+        return {
+            currentFen: newFen,
+            bitboards: newBitboards,
+            activeColor: newActiveColor,
+            castlingRights: newCastlingRights,
+            enPassantSquare: newEnPassantSquare
+        };
+    },
+
+    updateCastlingRights(
+        currentRights: CastlingRights,
+        from: Position,
+        to: Position,
+        piece: Piece
+    ): CastlingRights {
+        const newRights = { ...currentRights };
+
+        if (piece.type === 'king') {
+            if (piece.color === 'white') {
+                newRights.whiteKingSide = false;
+                newRights.whiteQueenSide = false;
+            } else {
+                newRights.blackKingSide = false;
+                newRights.blackQueenSide = false;
+            }
+        }
+
+        if (piece.type === 'rook') {
+            if (piece.color === 'white') {
+                if (from.row === 0 && from.col === 0) newRights.whiteQueenSide = false;
+                if (from.row === 0 && from.col === 7) newRights.whiteKingSide = false;
+            } else {
+                if (from.row === 7 && from.col === 0) newRights.blackQueenSide = false;
+                if (from.row === 7 && from.col === 7) newRights.blackKingSide = false;
+            }
+        }
+
+        if (to.row === 0 && to.col === 0) newRights.whiteQueenSide = false;
+        if (to.row === 0 && to.col === 7) newRights.whiteKingSide = false;
+        if (to.row === 7 && to.col === 0) newRights.blackQueenSide = false;
+        if (to.row === 7 && to.col === 7) newRights.blackKingSide = false;
+
+        return newRights;
+    },
+
+    updateEnPassantSquare(from: Position, to: Position, piece: Piece): Position | null {
+        if (piece.type === 'pawn' && Math.abs(to.row - from.row) === 2) {
+            return {
+                row: piece.color === 'white' ? from.row + 1 : from.row - 1,
+                col: from.col
+            };
+        }
+        return null;
     },
 
     clearPieceAt(game: BitboardGame, position: Position, piece: Piece): void {
@@ -678,7 +761,7 @@ export const ChessEngine = {
         if (!piece || piece.type !== 'pawn') return validMoves;
 
         const isWhite = piece.color === 'white';
-        const direction = isWhite ? 1 : -1; 
+        const direction = isWhite ? 1 : -1;
         const startingRow = isWhite ? 1 : 6;
         const allPieces = this.getAllPieces(game);
         const enemyPieces = this.getAllPiecesOfColor(game, isWhite ? 'black' : 'white');
@@ -758,7 +841,7 @@ export const ChessEngine = {
 
         for (const move of knightMoves) {
             const newRow = from.row + move.row;
-            const newCol = from.col + move.col;  
+            const newCol = from.col + move.col;
             const newPosition = { row: newRow, col: newCol };
 
             if (this.isValidSquare(newPosition) && !this.isSquareOccupied(ownPieces, newPosition)) {
