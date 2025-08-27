@@ -5,14 +5,22 @@ import { ChessEngine } from '../game/Board';
 import { Position, Piece as PieceInterface } from '../game/types';
 import { ClientGameState, GameStateManager } from '../game/GameState';
 
-
 const STARTING_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+// Define MoveLabel type
+export type MoveLabel = 'brilliant' | 'best' | 'excellent' | 'good' | 'book' | 'inaccuracy' | 'mistake' | 'blunder';
 
 interface BoardProps {
   playerColor: 'white' | 'black';
   initialFen?: string;
   onMove?: (from: Position, to: Position) => void;
   gameState?: ClientGameState | null;
+  // New prop for replay highlighting
+  highlightedMove?: {
+    from: Position;
+    to: Position;
+    label: MoveLabel;
+  };
 }
 
 const Board: React.FC<BoardProps> = ({
@@ -20,6 +28,7 @@ const Board: React.FC<BoardProps> = ({
   initialFen = STARTING_FEN,
   onMove,
   gameState: externalGameState,
+  highlightedMove, // New prop
 }) => {
   //   1. Local game state 
   const [gameState, setGameState] = React.useState<ClientGameState>(() =>
@@ -121,6 +130,18 @@ const Board: React.FC<BoardProps> = ({
       setValidMoves([]);
     }
   };
+
+  // ========== HIGHLIGHT HELPER FUNCTIONS ==========
+  
+  // Check if square is part of highlighted move (from square)
+  const isFromSquare = React.useCallback((row: number, col: number): boolean => {
+    return highlightedMove?.from.row === row && highlightedMove?.from.col === col;
+  }, [highlightedMove]);
+
+  // Check if square is part of highlighted move (to square)
+  const isToSquare = React.useCallback((row: number, col: number): boolean => {
+    return highlightedMove?.to.row === row && highlightedMove?.to.col === col;
+  }, [highlightedMove]);
 
   //   9. Helper functions
   const isLightSquare = React.useCallback((row: number, col: number) => {
@@ -331,20 +352,6 @@ const Board: React.FC<BoardProps> = ({
     handleMovePiece
   ]);
 
-
-  //   16. Board coordinates
-  // const getFileLabel = React.useCallback((col: number): string => {
-  //   return playerColor === 'white'
-  //     ? String.fromCharCode(97 + col)
-  //     : String.fromCharCode(104 - col);
-  // }, [playerColor]);
-
-  // const getRankLabel = React.useCallback((row: number): string => {
-  //   return playerColor === 'white'
-  //     ? String(8 - row)
-  //     : String(row + 1);
-  // }, [playerColor]);
-
   //   17. Board rendering with perspective
   const renderBoard = () => {
     const rows = playerColor === 'black' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
@@ -364,6 +371,9 @@ const Board: React.FC<BoardProps> = ({
                   onClick={() => handleSquareClick(row, col)}
                   isSelected={isSquareSelected(row, col)}
                   isValidMove={isSquareValidMove(row, col)}
+                  isFromSquare={isFromSquare(row, col)}
+                  isToSquare={isToSquare(row, col)}
+                  moveLabel={highlightedMove?.label}
                 >
                   {piece && isPieceVisible({ row, col }) && (
                     <div

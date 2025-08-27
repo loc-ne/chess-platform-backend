@@ -6,10 +6,14 @@ interface ReplayControlsProps {
   onPrevious?: () => void;
   onNext?: () => void;
   onEnd?: () => void;
+  onAutoReplay?: () => void;
+  isReplaying: boolean;
   disabledStart?: boolean;
   disabledPrevious?: boolean;
   disabledNext?: boolean;
   disabledEnd?: boolean;
+  currentMove?: number;
+  totalMoves?: number;
 }
 
 const iconClass = "w-4 h-4";
@@ -20,6 +24,8 @@ const ReplayControls: React.FC<ReplayControlsProps> = ({
   onPrevious,
   onNext,
   onEnd,
+  onAutoReplay,
+  isReplaying,
   disabledStart,
   disabledPrevious,
   disabledNext,
@@ -44,6 +50,21 @@ const ReplayControls: React.FC<ReplayControlsProps> = ({
       < Image src="/assets/previous-icon.png" alt="Previous" className={iconClass} width={iconSize}
         height={iconSize} />
     </button>
+    <button
+      onClick={onAutoReplay}
+      className="p-2 rounded hover:bg-gray-100 disabled:opacity-50"
+      aria-label={isReplaying ? "Tạm dừng" : "Tự động chạy"}
+    >
+      <Image
+        src={isReplaying ? "/assets/pause.png" : "/assets/play-icon.png"}
+        alt={isReplaying ? "Pause" : "Play"}
+        className={iconClass}
+        width={iconSize}
+        height={iconSize}
+      />
+    </button>
+
+
     <button
       onClick={onNext}
       disabled={disabledNext}

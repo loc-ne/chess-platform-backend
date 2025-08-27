@@ -23,127 +23,161 @@ interface GameAnalysisProps {
   player2: PlayerStats;
   winner?: 'player1' | 'player2' | 'draw';
   className?: string;
+  onShowReplay?: () => void;
 }
 
 const GameAnalysis: React.FC<GameAnalysisProps> = ({
   player1,
   player2,
   winner,
-  className = ''
+  className = '',
+  onShowReplay
 }) => {
+  // Statistics configuration
   const stats = [
     { 
       label: 'Thiên tài', 
       icon: '/assets/brilliant_1024x.png', 
-      color: 'bg-cyan-500/20 border-cyan-500/30', 
       key: 'brilliant' 
     },
     { 
       label: 'Tuyệt', 
-      icon: '/assets/excellent_1024x.png', 
-      color: 'bg-blue-500/20 border-blue-500/30', 
+      icon: '/assets/great_find_1024x.png', 
       key: 'great' 
     },
     { 
       label: 'Tốt nhất', 
       icon: '/assets/best_1024x.png', 
-      color: 'bg-green-500/20 border-green-500/30', 
       key: 'best' 
     },
     { 
       label: 'Tuyệt vời', 
       icon: '/assets/excellent_1024x.png', 
-      color: 'bg-green-400/20 border-green-400/30', 
       key: 'excellent' 
     },
     { 
       label: 'Tốt', 
       icon: '/assets/correct_1024x.png', 
-      color: 'bg-green-600/20 border-green-600/30', 
       key: 'good' 
     },
     { 
       label: 'Chủ đề sách', 
       icon: '/assets/book_1024x.png', 
-      color: 'bg-orange-500/20 border-orange-500/30', 
       key: 'inaccuracy' 
     },
     { 
       label: 'Không chính xác', 
       icon: '/assets/inaccuracy_1024x.png', 
-      color: 'bg-yellow-500/20 border-yellow-500/30', 
       key: 'mistake' 
     },
     { 
       label: 'Sai lầm', 
       icon: '/assets/mistake_1024x.png', 
-      color: 'bg-orange-600/20 border-orange-600/30', 
       key: 'mistake' 
     },
     { 
       label: 'Bỏ lỡ', 
-      icon: '/assets/blunder_1024x.png', 
-      color: 'bg-red-500/20 border-red-500/30', 
-      key: 'blunder' 
+      icon: '/assets/incorrect_1024x.png', 
+      key: 'miss' 
     },
     { 
-      label: 'Nước sai làm ngỡ ngàn', 
-      icon: '/assets/incorrect_1024x.png', 
-      color: 'bg-red-600/20 border-red-600/30', 
-      key: 'missedWin' 
+      label: 'Nước sai lầm nghiêm trọng', 
+      icon: '/assets/blunder_1024x.png', 
+      key: 'blunder' 
     }
   ];
 
+  // Helper function to get winner indicator
+  const getWinnerIndicator = () => {
+    switch (winner) {
+      case 'player1': return '1-0';
+      case 'player2': return '0-1';
+      default: return '½-½';
+    }
+  };
+
+  const getAccuracyBgColor = (isPlayer2: boolean = false) => {
+    if (isPlayer2 && winner === 'player2') {
+      return 'bg-green-600';
+    }
+    if (!isPlayer2 && winner === 'player1') {
+      return 'bg-green-600';
+    }
+    return 'bg-gray-700';
+  };
+
   return (
-    <div className="bg-white border border-gray-300 rounded-lg p-3 mt-4">
-      {/* Game Result Chart */}
+    <div className={`bg-white border border-gray-300 rounded-lg p-4 mt-4 ${className}`}>
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-center">
-            <div className="text-sm font-medium">{player1.username}</div>
+        {/* Player Names & Result */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-center flex-1">
+            <h3 className="text-sm font-semibold text-gray-800">
+              {player1.username}
+            </h3>
           </div>
           
-          <div className="text-center text-xl font-bold">
-            {winner === 'player1' ? '1-0' : winner === 'player2' ? '0-1' : '½-½'}
+          <div className="text-center px-4">
+            <div className="text-xl font-bold text-gray-900">
+              {getWinnerIndicator()}
+            </div>
           </div>
           
-          <div className="text-center">
-     
-              
-            <div className="text-sm font-medium">{player2.username}</div>
+          <div className="text-center flex-1">
+            <h3 className="text-sm font-semibold text-gray-800">
+              {player2.username}
+            </h3>
           </div>
         </div>
 
-        {/* Accuracy */}
-        <div className="mb-4">
-          <div className="text-sm text-black-400 mb-2">Độ chính xác</div>
-          <div className="flex justify-between">
-            <div className="bg-gray-700 px-3 py-2 rounded text-center">
-              <div className="font-bold">{player1.accuracy}</div>
+        {/* Accuracy Comparison */}
+        <div className="space-y-2">
+          <h4 className="text-sm text-gray-600 font-medium">
+            Độ chính xác
+          </h4>
+          
+          <div className="flex gap-4">
+            <div className={`${getAccuracyBgColor()} px-4 py-2 rounded-lg text-center text-white flex-1`}>
+              <div className="font-bold text-lg">
+                {player1.accuracy}%
+              </div>
             </div>
-            <div className={`px-3 py-2 rounded text-center ${
-              winner === 'player2' ? 'bg-green-600' : 'bg-gray-700'
-            }`}>
-              <div className="font-bold">{player2.accuracy}</div>
+            
+            <div className={`${getAccuracyBgColor(true)} px-4 py-2 rounded-lg text-center text-white flex-1`}>
+              <div className="font-bold text-lg">
+                {player2.accuracy}%
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Statistics */}
-      <div className="space-y-3">
+      <div className="space-y-2">
+        <h4 className="text-sm text-gray-600 font-medium mb-3">
+          Thống kê nước đi
+        </h4>
+        
         {stats.map((stat, index) => (
-          <div key={index} className="flex items-center justify-between">
+          <div 
+            key={index} 
+            className="flex items-center justify-between py-1 hover:bg-gray-50 rounded px-2 transition-colors"
+          >
+            {/* Label */}
             <div className="flex items-center gap-2 flex-1">
-              <span className="text-xs">{stat.label}</span>
+              <span className="text-xs text-gray-700 font-medium">
+                {stat.label}
+              </span>
             </div>
             
-            <div className="flex items-center gap-4">
-              <span className="w-8 text-center text-sm font-medium">
+            {/* Stats Row */}
+            <div className="flex items-center gap-3">
+              {/* Player 1 Count */}
+              <span className="w-8 text-center text-sm font-semibold text-gray-800">
                 {player1[stat.key as keyof PlayerStats] || 0}
               </span>
               
-              <div className={`w-8 h-8  flex items-center justify-center`}>
+              {/* Icon */}
+              <div className="w-6 h-6 flex items-center justify-center">
                 <Image
                   src={stat.icon}
                   alt={stat.label}
@@ -153,7 +187,8 @@ const GameAnalysis: React.FC<GameAnalysisProps> = ({
                 />
               </div>
               
-              <span className="w-8 text-center text-sm font-medium">
+              {/* Player 2 Count */}
+              <span className="w-8 text-center text-sm font-semibold text-gray-800">
                 {player2[stat.key as keyof PlayerStats] || 0}
               </span>
             </div>
@@ -161,10 +196,14 @@ const GameAnalysis: React.FC<GameAnalysisProps> = ({
         ))}
       </div>
 
-      {/* Action Button */}
-      <button className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors">
-        Xem lại
-      </button>
+      <div className="mt-6">
+        <button 
+          onClick={onShowReplay}
+          className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md"
+        >
+          Xem lại
+        </button>
+      </div>
     </div>
   );
 };
