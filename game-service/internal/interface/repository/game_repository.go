@@ -13,6 +13,7 @@ import (
 type GameRepository interface {
     SaveGame(ctx context.Context, game entity.Game) error
     SaveGamesBatch(ctx context.Context, games []entity.Game) error
+    GetGameByID(ctx context.Context, gameID string) (*entity.Game, error)
 }
 
 type mongoGameRepository struct {
@@ -56,4 +57,19 @@ func (r *mongoGameRepository) SaveGame(ctx context.Context, game entity.Game) er
         return fmt.Errorf("failed to save game: %w", err)
     }
     return nil
+}
+
+func (r *mongoGameRepository) GetGameByID(ctx context.Context, gameID string) (*entity.Game, error) {
+    var game entity.Game
+    
+    filter := bson.M{"gameId": gameID}
+    err := r.collection.FindOne(ctx, filter).Decode(&game)
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            return nil, fmt.Errorf("game not found: %s", gameID)
+        }
+        return nil, fmt.Errorf("failed to get game: %w", err)
+    }
+    
+    return &game, nil
 }
