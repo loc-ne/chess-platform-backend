@@ -49,3 +49,39 @@ func AnalyzeGame(inputMoves []string, trie *OpeningTrie) (*GameAnalysis, error) 
 
     return analysis, nil
 }
+
+func analyzeOpeningPhase(inputMoves []string, trie *OpeningTrie, analysis *GameAnalysis, engine *StockfishEngine) int {
+    openingEnd := 0
+    var lastOpeningName string
+    
+    for i := 1; i <= len(inputMoves); i++ {
+        currentMoves := inputMoves[:i]
+        openings := trie.Search(currentMoves)
+        engine.SetPosition(currentMoves)
+
+        score, err, isMate, mateIn := engine.GetCurrentScore()
+        if err != nil {
+            score = 0
+        }
+            
+        isWhiteMove := (i - 1) % 2 == 0
+        moveEvaluation := createEvaluation(score, isMate, mateIn, isWhiteMove)
+
+        if len(openings) > 0 {
+            openingEnd = i
+            lastOpeningName = openings[0].Name
+            analysis.Moves[i - 1] = MoveAnalysis{
+            Move:     inputMoves[i - 1],
+            Label:    "book",
+            CPScore:  moveEvaluation.Score,
+            Position: i,
+        }
+        } else {
+            break
+        }
+    }
+    
+    analysis.OpeningName = lastOpeningName
+    analysis.OpeningEnd = openingEnd
+    return openingEnd
+}
