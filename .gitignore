@@ -24,3 +24,6 @@ go.work.sum
 env
 .env
 .env.*
+
+# Ignore Stockfish binary
+stockfish.exe
