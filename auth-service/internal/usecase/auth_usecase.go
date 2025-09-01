@@ -25,6 +25,7 @@ func CheckPasswordHash(password, hash string) bool {
     return err == nil
 }
 
+
 func validateUser(userRepo repository.UserRepository, username, password string) (entity.User, error) {
     var user entity.User
     var err error
@@ -66,15 +67,36 @@ func Login(userRepo repository.UserRepository, username, password string) (UserI
     return userInfo, accessToken, refreshToken, nil
 }
 
+func isStrengthPassword(password string) bool {
+    return len(password) >= 6
+    // simple check
+}
+
+func sanitizeUsername(u string) string {
+    u = strings.TrimSpace(u)
+    u = strings.ReplaceAll(u, " ", "-")
+    return u
+}
+
 func Register(userRepo repository.UserRepository, user entity.User) (UserInfo, error) {
+    if !isEmail(user.Email) {
+        return UserInfo{}, fmt.Errorf("invalid email")
+    }
+
+    user.Username = sanitizeUsername(user.Username)
+    if len(user.Username) >= 40 {
+        return UserInfo{}, fmt.Errorf("username must be less than 40 characters")
+    }
+
+    if !isStrengthPassword(user.Password) {
+        return UserInfo{}, fmt.Errorf("password must be at least 6 characters")
+    }
     hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
     if err != nil {
         return UserInfo{}, err
     }
     user.Password = string(hashedPassword)
-    err = userRepo.Create(&user)
-
-    if err != nil {
+    if err := userRepo.Create(&user); err != nil {
         return UserInfo{}, err
     }
 
