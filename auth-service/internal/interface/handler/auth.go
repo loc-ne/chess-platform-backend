@@ -232,16 +232,47 @@ func RefreshToken(userRepo repository.UserRepository) gin.HandlerFunc {
     }
 }
 
+// localhost
+// func Logout() gin.HandlerFunc {
+//     return func(c *gin.Context) {
+//         c.SetCookie("access_token", "", -1, "/", "", false, true)
+//         c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+//         c.JSON(http.StatusOK, APIResponse{
+//             Status:  "success",
+//             Message: "Logout successful",
+//         })
+//     }
+// } 
+
 func Logout() gin.HandlerFunc {
     return func(c *gin.Context) {
-        c.SetCookie("access_token", "", -1, "/", "", false, true)
-        c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+        c.SetCookie(
+            "access_token",
+            "",
+            -1,                        
+            "/",
+            "",                        
+            true,                     
+            true,                      
+        )
+
+        c.SetCookie(
+            "refresh_token",
+            "",
+            -1,
+            "/",
+            "",
+            true,
+            true,
+        )
+
         c.JSON(http.StatusOK, APIResponse{
             Status:  "success",
             Message: "Logout successful",
         })
     }
 }
+
 
 func RegisterAuthRoutes(router *gin.Engine, userRepo repository.UserRepository, ch *amqp091.Channel) {
     api := router.Group("/api/v1/auth")
