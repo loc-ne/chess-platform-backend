@@ -4,6 +4,7 @@ import (
     "github.com/locne/auth-service/internal/entity"
 	"github.com/locne/auth-service/internal/interface/repository"
 	"golang.org/x/crypto/bcrypt"
+    "strings"
 	"regexp"
     "fmt"
 )
@@ -25,6 +26,13 @@ func CheckPasswordHash(password, hash string) bool {
     return err == nil
 }
 
+func isDuplicateError(err error, field string) bool {
+    if err == nil {
+        return false
+    }
+    errStr := strings.ToLower(err.Error())
+    return strings.Contains(errStr, "duplicate") && strings.Contains(errStr, field)
+}
 
 func validateUser(userRepo repository.UserRepository, username, password string) (entity.User, error) {
     var user entity.User
@@ -96,7 +104,16 @@ func Register(userRepo repository.UserRepository, user entity.User) (UserInfo, e
         return UserInfo{}, err
     }
     user.Password = string(hashedPassword)
+
     if err := userRepo.Create(&user); err != nil {
+        if isDuplicateError(err, "email") {
+            return UserInfo{}, fmt.Errorf("email already exists")
+        }
+         
+        if isDuplicateError(err, "username") {
+            return UserInfo{}, fmt.Errorf("username already exists")
+        }
+
         return UserInfo{}, err
     }
 
