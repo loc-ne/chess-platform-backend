@@ -3,6 +3,7 @@ package messagebroker
 import (
     "fmt"
     "os"
+    "time"
     "github.com/rabbitmq/amqp091-go"
 )
 
@@ -12,7 +13,16 @@ func ConnectRabbit() (*amqp091.Connection, *amqp091.Channel, error) {
         return nil, nil, fmt.Errorf("RABBITMQ_URL env not set")
     }
 
-    conn, err := amqp091.Dial(url)
+    var conn *amqp091.Connection
+    var err error
+    for attempt := 1; attempt <= 10; attempt++ {
+        conn, err = amqp091.Dial(url)
+        if err == nil {
+            break
+        }
+        fmt.Printf("RabbitMQ connect attempt %d failed: %v. Retrying...\n", attempt, err)
+        time.Sleep(2 * time.Second)
+    }
     if err != nil {
         return nil, nil, fmt.Errorf("Can't connect to RabbitMQ: %v", err)
     }

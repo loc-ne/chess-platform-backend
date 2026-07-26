@@ -1,0 +1,196 @@
+services:
+  # -----------------------------------------------------------------
+  # Infrastructure Services
+  # -----------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: chess-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chess_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: chess-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:6.0
+    container_name: chess-mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: kangyoo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: chess-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  # -----------------------------------------------------------------
+  # Application Microservices
+  # -----------------------------------------------------------------
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: chess-auth-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+      ENV: "production"
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/chess_db?sslmode=disable"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      FRONTEND_ORIGIN: "http://localhost:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  player-service:
+    build:
+      context: ./player-service
+      dockerfile: Dockerfile
+    container_name: chess-player-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: "8082"
+      ENV: "production"
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/chess_db?sslmode=disable"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      FRONTEND_ORIGIN: "http://localhost:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  game-service:
+    build:
+      context: ./game-service
+      dockerfile: Dockerfile
+    container_name: chess-game-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: "8083"
+      ENV: "production"
+      MONGODB_URI: "mongodb://mongodb:27017"
+      REDIS_ADDR: "redis:6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ""
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      FRONTEND_ORIGIN: "http://localhost:3000"
+    depends_on:
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  matchmaking-service:
+    build:
+      context: ./matchmaking-service
+      dockerfile: Dockerfile
+    container_name: chess-matchmaking-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: "8084"
+      ENV: "production"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      FRONTEND_ORIGIN: "http://localhost:3000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  ws-service:
+    build:
+      context: ./ws-service
+      dockerfile: Dockerfile
+    container_name: chess-ws-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      PORT: "8085"
+      ENV: "production"
+      REDIS_ADDR: "redis:6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ""
+      FRONTEND_ORIGIN: "http://localhost:3000"
+    depends_on:
+      redis:
+        condition: service_started
+
+  analysis-service:
+    build:
+      context: ./analysis-service
+      dockerfile: Dockerfile
+    container_name: chess-analysis-service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      ENV: "production"
+      FRONTEND_ORIGIN: "http://localhost:3000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_AUTH_SERVICE_URL: "http://localhost:8081"
+        NEXT_PUBLIC_PLAYER_SERVICE_URL: "http://localhost:8082"
+        NEXT_PUBLIC_GAME_SERVICE_URL: "http://localhost:8083"
+        NEXT_PUBLIC_MATCHMAKING_SERVICE_URL: "http://localhost:8084"
+        NEXT_PUBLIC_WEBSOCKET_URL: "ws://localhost:8085/ws"
+        NEXT_PUBLIC_ANALYSIS_SERVICE_URL: "http://localhost:8080"
+    container_name: chess-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - auth-service
+      - ws-service
+      - matchmaking-service
+
+volumes:
+  postgres_data:
+  mongo_data:

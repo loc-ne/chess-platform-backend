@@ -24,16 +24,25 @@ func loadOpeningsFromCache(filename string) ([]usecase.Opening, error) {
 
 
 func main() {
-    cacheFile := "cmd/combined_openings.json"
+    cacheFiles := []string{
+        "cmd/combined_openings.json",
+        "cmd/openings.json",
+        "combined_openings.json",
+        "openings.json",
+    }
     var openings []usecase.Opening
     var err error
 
-    openings, err = loadOpeningsFromCache(cacheFile)
+    for _, file := range cacheFiles {
+        openings, err = loadOpeningsFromCache(file)
+        if err == nil {
+            fmt.Printf("Loaded %d openings from %s\n", len(openings), file)
+            break
+        }
+    }
 
-    if err != nil {
-        fmt.Printf("Failed to load cache: %v\n", err)
-    } else {
-        fmt.Printf("Loaded %d openings\n", len(openings))
+    if err != nil || len(openings) == 0 {
+        fmt.Printf("Failed to load opening cache: %v\n", err)
     }
     
     

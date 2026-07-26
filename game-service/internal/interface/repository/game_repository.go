@@ -6,6 +6,7 @@ import (
     "log"
     
     "github.com/locne/game-service/internal/entity"
+    "go.mongodb.org/mongo-driver/bson"
     "go.mongodb.org/mongo-driver/mongo"
     "go.mongodb.org/mongo-driver/mongo/options"
 )

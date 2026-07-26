@@ -16,10 +16,23 @@ func main() {
         godotenv.Load("internal/infrastructure/config/.env")
     }
 
+    redisAddr := os.Getenv("REDIS_ADDR")
+    if redisAddr == "" {
+        redisAddr = "redis-15123.crce185.ap-seast-1-1.ec2.redns.redis-cloud.com:15123"
+    }
+    redisUser := os.Getenv("REDIS_USERNAME")
+    if redisUser == "" && os.Getenv("REDIS_ADDR") == "" {
+        redisUser = "default"
+    }
+    redisPass := os.Getenv("REDIS_PASSWORD")
+    if redisPass == "" && os.Getenv("REDIS_ADDR") == "" {
+        redisPass = "djPg9bQavZmVK6SH2e5npv5DBwolxLP6"
+    }
+
     redisClient := redis.NewClient(&redis.Options{
-        Addr:     "redis-15123.crce185.ap-seast-1-1.ec2.redns.redis-cloud.com:15123",
-        Username: "default",
-        Password: "djPg9bQavZmVK6SH2e5npv5DBwolxLP6",
+        Addr:     redisAddr,
+        Username: redisUser,
+        Password: redisPass,
         DB:       0,
     })
     

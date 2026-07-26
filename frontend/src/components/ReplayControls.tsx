@@ -7,7 +7,7 @@ interface ReplayControlsProps {
   onNext?: () => void;
   onEnd?: () => void;
   onAutoReplay?: () => void;
-  isReplaying: boolean;
+  isReplaying?: boolean;
   disabledStart?: boolean;
   disabledPrevious?: boolean;
   disabledNext?: boolean;
@@ -25,7 +25,7 @@ const ReplayControls: React.FC<ReplayControlsProps> = ({
   onNext,
   onEnd,
   onAutoReplay,
-  isReplaying,
+  isReplaying = false,
   disabledStart,
   disabledPrevious,
   disabledNext,
