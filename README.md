@@ -17,6 +17,7 @@ A high-performance, distributed microservices platform for playing, matching, an
 ### ⚡ Ultra-Low Latency Realtime Gameplay
 - **Dedicated WebSocket Service (`ws-service`)**: Decoupled connection gateway handling persistent client WebSockets for move broadcasts and room state updates with millisecond-level responsiveness.
 - **In-Memory Game State Management**: High-speed game state read/writes backed by Redis during active gameplay.
+- **Sub-Millisecond Clock & State Sync**: Optimized time-control countdowns and instant move distribution over Redis Pub/Sub channels to prevent latency lag during fast Bullet/Blitz games.
 
 ### 🎮 Automated Matchmaking Queue
 - **Concurrent Worker Pool (`matchmaking-service`)**: Asynchronous matchmaking service with a dynamic worker pool that groups players based on availability and rating.
@@ -144,31 +145,6 @@ Once containers are running and healthy:
 - 🐘 **PostgreSQL Port**: `5432` *(User/Pass: `postgres` / `postgres`, DB: `chess_db`)*
 - 🍃 **MongoDB Port**: `27017` *(DB: `kangyoo`)*
 - 🔴 **Redis Port**: `6379`
-
----
-
-## 🔍 Useful Commands
-
-### Check Running Containers
-```bash
-docker compose ps
-```
-
-### View Live Logs
-```bash
-# View all logs
-docker compose logs -f
-
-# View logs for a specific service (e.g. ws-service)
-docker compose logs -f ws-service
-```
-
-### Stop All Containers
-```bash
-docker compose down
-```
-
----
 
 ## 💡 Engineering & Architecture Design Highlights
 
