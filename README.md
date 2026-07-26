@@ -37,9 +37,9 @@ A high-performance, distributed microservices platform for playing, matching, an
 
 ## 📸 Application Screenshots
 
-| ♟️ Realtime Gameplay & Board | 🧠 Position Analysis & Opening Explorer |
+| ♟️ Realtime Gameplay & Board | 🎯 Matchmaking & Time Control Selector |
 | :---: | :---: |
-| ![Realtime Gameplay](docs/screenshots/gameplay.png) | ![Opening Analysis](docs/screenshots/opening_analysis.png) |
+| ![Realtime Gameplay](docs/screenshots/gameplay.png) | ![Matchmaking Lobby](docs/screenshots/matchmaking_lobby.png) |
 
 ---
 
