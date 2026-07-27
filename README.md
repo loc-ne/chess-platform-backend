@@ -154,6 +154,25 @@ Once containers are running and healthy:
 - 🍃 **MongoDB Port**: `27017` *(DB: `kangyoo`)*
 - 🔴 **Redis Port**: `6379`
 
+---
+
+## 📁 Project Structure
+
+```text
+chess-platform-backend/
+├── analysis-service/       # Opening book analysis engine (Trie algorithm)
+├── auth-service/           # User authentication & JWT session management
+├── frontend/               # Next.js 15 web app (React 19, TypeScript, Tailwind CSS)
+├── game-service/           # Realtime game state, move validation & persistence
+├── matchmaking-service/    # Asynchronous player matchmaking queue & worker pool
+├── player-service/         # Player profiles, ratings & stats management
+├── ws-service/             # Realtime WebSocket gateway & Redis Pub/Sub listener
+├── docs/                   # System architecture diagrams & screenshots
+└── docker-compose.yml      # Orchestration for all 11 microservices & databases
+```
+
+---
+
 ## 💡 Engineering & Architecture Design Highlights
 
 1. **Non-Blocking Asynchronous Operations**: Heavy/long-running operations (such as initializing a new game or provisioning player stats) are delegated to RabbitMQ queues, ensuring HTTP response endpoints return within milliseconds.
